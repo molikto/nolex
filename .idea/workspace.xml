@@ -14,29 +14,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2f6a9c2a-a083-4648-a626-5566607c432b" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/fonts/JetBrainsMono-Bold-Italic.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fonts/JetBrainsMono-Bold.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fonts/JetBrainsMono-ExtraBold-Italic.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fonts/JetBrainsMono-ExtraBold.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fonts/JetBrainsMono-Italic.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fonts/JetBrainsMono-Medium-Italic.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fonts/JetBrainsMono-Medium.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fonts/JetBrainsMono-Regular.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/editor/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/editor/widget.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/languages/json.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/languages/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/spec.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.rs" beforeDir="false" afterPath="$PROJECT_DIR$/build.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/icons.ttf" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/nolex/mod.rs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tree-sitter-json" beforeDir="false" afterPath="$PROJECT_DIR$/tree-sitter-json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/data.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/data.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/editor/widget.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/editor/widget.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tree-sitter-json/grammar.js" beforeDir="false" afterPath="$PROJECT_DIR$/tree-sitter-json/grammar.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tree-sitter-json/src/grammar.json" beforeDir="false" afterPath="$PROJECT_DIR$/tree-sitter-json/src/grammar.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/tree-sitter-json/src/node-types.json" beforeDir="false" afterPath="$PROJECT_DIR$/tree-sitter-json/src/node-types.json" afterDir="false" />
@@ -168,22 +148,22 @@
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
     <state x="1314" y="477" key="#com.intellij.refactoring.safeDelete.UnsafeUsagesDialog/0.23.2560.1367@0.23.2560.1367" timestamp="1593677541719" />
-    <state width="1756" height="427" key="GridCell.Tab.0.bottom" timestamp="1593703576173">
+    <state width="1756" height="427" key="GridCell.Tab.0.bottom" timestamp="1593705276197">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state width="1756" height="427" key="GridCell.Tab.0.bottom/0.23.2560.1367@0.23.2560.1367" timestamp="1593703576173" />
-    <state width="1756" height="427" key="GridCell.Tab.0.center" timestamp="1593703576172">
+    <state width="1756" height="427" key="GridCell.Tab.0.bottom/0.23.2560.1367@0.23.2560.1367" timestamp="1593705276197" />
+    <state width="1756" height="427" key="GridCell.Tab.0.center" timestamp="1593705276196">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state width="1756" height="427" key="GridCell.Tab.0.center/0.23.2560.1367@0.23.2560.1367" timestamp="1593703576172" />
-    <state width="1756" height="427" key="GridCell.Tab.0.left" timestamp="1593703576172">
+    <state width="1756" height="427" key="GridCell.Tab.0.center/0.23.2560.1367@0.23.2560.1367" timestamp="1593705276196" />
+    <state width="1756" height="427" key="GridCell.Tab.0.left" timestamp="1593705276196">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state width="1756" height="427" key="GridCell.Tab.0.left/0.23.2560.1367@0.23.2560.1367" timestamp="1593703576172" />
-    <state width="1756" height="427" key="GridCell.Tab.0.right" timestamp="1593703576173">
+    <state width="1756" height="427" key="GridCell.Tab.0.left/0.23.2560.1367@0.23.2560.1367" timestamp="1593705276196" />
+    <state width="1756" height="427" key="GridCell.Tab.0.right" timestamp="1593705276197">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state width="1756" height="427" key="GridCell.Tab.0.right/0.23.2560.1367@0.23.2560.1367" timestamp="1593703576173" />
+    <state width="1756" height="427" key="GridCell.Tab.0.right/0.23.2560.1367@0.23.2560.1367" timestamp="1593705276197" />
     <state x="991" y="295" key="SettingsEditor" timestamp="1593668596247">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
@@ -196,9 +176,9 @@
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
     <state width="710" height="1029" key="javadoc.popup.new/0.23.2560.1367@0.23.2560.1367" timestamp="1593688117925" />
-    <state x="1236" y="368" width="670" height="676" key="search.everywhere.popup" timestamp="1593699622090">
+    <state x="1236" y="368" width="670" height="676" key="search.everywhere.popup" timestamp="1593705186269">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state x="1236" y="368" width="670" height="676" key="search.everywhere.popup/0.23.2560.1367@0.23.2560.1367" timestamp="1593699622090" />
+    <state x="1236" y="368" width="670" height="676" key="search.everywhere.popup/0.23.2560.1367@0.23.2560.1367" timestamp="1593705186269" />
   </component>
 </project>

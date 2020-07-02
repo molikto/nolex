@@ -1,4 +1,3 @@
-
 use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietTextLayout, PietText};
 use druid::widget::prelude::*;
 use druid::{Point};
@@ -13,7 +12,7 @@ use std::ops::DerefMut;
 
 struct TokenLayout {
     token: Token,
-    layout: PietTextLayout
+    layout: PietTextLayout,
 }
 
 impl TokenLayout {
@@ -70,7 +69,7 @@ impl Block {
         match res {
             LayoutResult::Single(a) => {
                 last.tokens.push(a)
-            },
+            }
             LayoutResult::Line(mut l) => last.tokens.append(&mut l.tokens),
             LayoutResult::Block(mut b) => {
                 self.append_block(b)
@@ -85,14 +84,14 @@ impl Block {
     }
 
     fn nl(&mut self) {
-        self.lines.push(Line { indent : 0.0, tokens: vec![] })
+        self.lines.push(Line { indent: 0.0, tokens: vec![] })
     }
 }
 
 enum LayoutResult {
     Single(TokenLayout),
     Line(Line),
-    Block(Block)
+    Block(Block),
 }
 
 impl LayoutResult {
@@ -106,7 +105,7 @@ impl LayoutResult {
 
     fn to_lines(self) -> Vec<Line> {
         match self {
-            LayoutResult::Single(t) => vec![Line { indent: 0.0, tokens: vec![t]}],
+            LayoutResult::Single(t) => vec![Line { indent: 0.0, tokens: vec![t] }],
             LayoutResult::Line(l) => vec![l],
             LayoutResult::Block(b) => b.lines
         }
@@ -125,30 +124,27 @@ pub struct EditorState {
     tree: Tree,
     font: Option<PietFont>,
     max_width: f64,
-    layout: Vec<Line>
+    layout: Vec<Line>,
 }
 
 impl EditorState {
     pub fn new() -> EditorState {
-        let tps = String::from("{\":0,\":\",\":t}");
-        let tokens = debug_Tokens_new(
-            &tps,
-            vec![
-                "{",
-                "key",
-                ":",
-                "1000",
-                ",",
-                "key2 ",
-                ":",
-                "أَلْحُرُوف ٱلْعَرَبِيَّة😄 😁 😆 value valuluevaluevaluevalue",
-                ",",
-                "key3",
-                ":",
-                "true",
-                "}"
-            ].iter().map(|n| (*n).into()).collect()
-        );
+        let tokens = vec![
+            Token::new(1, "{"),
+            Token::new(7, "key"),
+            Token::new(4, ":"),
+            Token::new(10, "1000"),
+            Token::new(2, ","),
+            Token::new(7, "key2 "),
+            Token::new(4, ":"),
+            Token::new(7, "أَلْحُرُوف ٱلْعَرَبِيَّة😄 😁 😆 value valuluevaluevaluevalue"),
+            Token::new(2, ","),
+            Token::new(7, "key3"),
+            Token::new(4, ":"),
+            Token::new(11, "true"),
+            Token::new(3, "}")
+        ];
+        let tps: Vec<u8> = tokens.iter().map(|n| n.tp as u8).collect();
         let mut parser = crate::languages::json::new_parser();
         let tree = parser.parse(&tps, None).unwrap();
         let state = EditorState { version: 0, tokens, parser, tree, font: None, layout: vec![], max_width: 0.0 };
@@ -204,9 +200,9 @@ impl Widget<u64> for EditorState {
 }
 
 struct LayoutParams<'a, 'c> {
-    state: &'a  EditorState,
+    state: &'a EditorState,
     ctx: PietText<'c>,
-    indent: f64
+    indent: f64,
 }
 
 impl LayoutParams<'_, '_> {
@@ -215,7 +211,7 @@ impl LayoutParams<'_, '_> {
         let layout = self.ctx.new_text_layout(
             self.state.font.as_ref().unwrap(),
             &token.str,
-            f64::MAX
+            f64::MAX,
         ).build().unwrap();
         LayoutResult::Single(TokenLayout { token, layout })
     }
@@ -239,7 +235,7 @@ impl LayoutParams<'_, '_> {
                         is_block = true;
                         // LATER it is possible first item is not a single line after indent is added
                         layout = self.layout_node(node, max_width - self.indent)
-                    },
+                    }
                     _ => {
                         current_width += layout.width();
                         // this happens when the items cannot turns into block but it too long anyway
@@ -257,15 +253,15 @@ impl LayoutParams<'_, '_> {
                         TokenRole::TreeStart => {
                             block.append(child);
                             inside = true;
-                        },
+                        }
                         TokenRole::TreeEnd => {
                             inside = false;
                             block.nl();
                             block.append(child);
-                        },
+                        }
                         TokenRole::Sep => {
                             block.append(child);
-                        },
+                        }
                         _ => {
                             block.nl();
                             let mut bl = child.to_block();
@@ -281,7 +277,7 @@ impl LayoutParams<'_, '_> {
                     match child {
                         LayoutResult::Single(a) => {
                             tokens.push(a);
-                        },
+                        }
                         LayoutResult::Line(mut b) => {
                             tokens.append(&mut b.tokens);
                         }
@@ -309,27 +305,4 @@ impl LayoutParams<'_, '_> {
             block.wrap()
         }
     }
-
 }
-
-//
-// fn ast_to_layout_tree(tokens: &Tokens, node: Node) -> {
-//     let tp = node.kind_id();
-//     let pos = node.start_byte();
-//     if tp < 12 {
-//         let content = &tokens.strs[pos];
-//         col = col.push(
-//             Text::new(content)
-//                 .font(FONT_JET_BRAINS_MONO_REGULAR)
-//                 .color(highlight(tp, content))
-//         )
-//     }
-//     let mut cursor = node.walk();
-//     if cursor.goto_first_child() {
-//         col = col.push(self.render_tree_node(cursor.node()));
-//         while cursor.goto_next_sibling() == true {
-//             col = col.push(self.render_tree_node(cursor.node()));
-//         }
-//     }
-//     col.into()
-// }
