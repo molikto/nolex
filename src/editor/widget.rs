@@ -1,6 +1,6 @@
-use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietTextLayout, PietText};
+use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietTextLayout, PietText, HitTestTextPosition};
 use druid::widget::prelude::*;
-use druid::{Point, Color};
+use druid::{Point, Color, Rect};
 use tree_sitter::{Parser, Node, Tree};
 
 use crate::*;
@@ -172,11 +172,17 @@ impl LayoutResult {
 }
 
 
+#[derive(Clone, Debug)]
+enum Cursor {
+    Point { token: usize, pos: usize }
+}
+
 pub struct EditorState {
     version: u64,
     language: &'static Language,
     parser: Parser,
     tokens: Tokens,
+    cursor: Cursor,
     tree: Tree,
     font: Option<PietFont>,
     max_width: f64,
@@ -205,8 +211,12 @@ impl EditorState {
         let mut parser = Parser::new();
         parser.set_language(language.language).unwrap();
         let tree = parser.parse(&tps, None).unwrap();
+        let cursor = Cursor::Point { token: 0, pos: 0 };
         let state = EditorState {
-            version: 0, language, parser, tokens, tree, font: None, layout: vec![], max_width: 0.0 };
+            version: 0, language, parser,
+            tokens, cursor,
+            tree,
+            font: None, layout: vec![], max_width: 0.0 };
         state
     }
 }
@@ -238,7 +248,10 @@ fn style(tp: &TokenSpec) -> Color {
 }
 
 impl Widget<u64> for EditorState {
-    fn event(&mut self, ctx: &mut EventCtx, _event: &Event, _data: &mut u64, _env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut u64, _env: &Env) {
+        match event {
+
+        }
         ctx.request_focus()
     }
 
@@ -260,7 +273,13 @@ impl Widget<u64> for EditorState {
 
     fn paint(&mut self, ctx: &mut PaintCtx, _data: &u64, _env: &Env) {
         let layout = &self.layout;
+        let cursor = match self.cursor {
+            Cursor::Point { token, pos } => (token, pos),
+        };
+        // draw cursor
+        // draw texts
         let mut top = 0.0;
+        let mut token_pos: usize = 0;
         for line in layout {
             let mut left = line.indent;
             let tokens = &line.tokens;
@@ -275,15 +294,35 @@ impl Widget<u64> for EditorState {
             for token in tokens {
                 left += token.0;
                 let token = &token.1;
+                // draw cursor
+                let text_pos = Point::new(left, top + ascent);
+                if token_pos == cursor.0 {
+                    let cursor_pos: HitTestTextPosition = token.layout.hit_test_text_position(cursor.1).unwrap();
+                    let x0 = cursor_pos.point.x + text_pos.x;
+                    let y = cursor_pos.point.y;
+                    let rect = Rect {
+                        x0,
+                        x1: x0 + 1.0,
+                        y0: y - ascent,
+                        y1: y + descent_and_leading
+                    };
+                    ctx.fill(rect, &Color::grey8(255));
+                }
                 //println!("{}, {}", width, height);
-                ctx.draw_text(&token.layout, Point::new(left, top + ascent), &style(&self.language.nodes[token.token.tp as usize].unwrap_as_token()));
+                ctx.draw_text(&token.layout, text_pos, &style(&self.language.nodes[token.token.tp as usize].unwrap_as_token()));
                 let width = token.layout.width();
                 left += width;
+                token_pos += 1;
             }
             top += height;
         }
     }
 }
+
+
+
+
+
 
 struct LayoutParams<'a, 'c> {
     state: &'a EditorState,
