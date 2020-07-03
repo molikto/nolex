@@ -57,10 +57,14 @@ pub struct Rule {
 
 #[derive(Clone, Debug)]
 pub enum TokenType {
+    /// this is special in layout calculation because how they interact with margins,
+    /// it always invalidate it's siblings margin because a separator acts as a space itself
+    Separator,
+    // these doens't  have any more meanings, we use them mainly to do default highlighting
     Delimiter,
     Keyword,
-    Const,
-    Unspecified { breakable: bool }
+    Const, // TODO breakable
+    Unspecified
 }
 
 #[derive(Clone, Debug)]

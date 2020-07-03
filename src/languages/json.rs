@@ -58,13 +58,12 @@ impl crate::Language for Json {
         assert!(tp < 12);
         if tp == 7 || tp == 8 {
             TokenType::Const
-            // Color::rgb8(204, 120, 55)
         } else if tp == 9 || tp == 10 || tp == 11 {
             TokenType::Keyword
-            // Color::rgb8(106, 135, 89)
+        } else if tp == 2 || tp == 4 {
+            TokenType::Separator
         } else {
             TokenType::Delimiter
-            // Color::rgb8(169, 183, 198)
         }
     }
 

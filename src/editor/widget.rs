@@ -159,13 +159,16 @@ fn style(tp: TokenType) -> Color {
         TokenType::Delimiter => {
             Color::rgb8(169, 183, 198)
         },
+        TokenType::Separator => {
+            Color::rgb8(169, 183, 198)
+        }
         TokenType::Keyword => {
             Color::rgb8(106, 135, 89)
         },
         TokenType::Const => {
             Color::rgb8(204, 120, 55)
         },
-        TokenType::Unspecified { .. } => {
+        TokenType::Unspecified => {
             Color::rgb8(169, 183, 198)
         },
     }
