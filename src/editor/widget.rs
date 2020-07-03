@@ -27,7 +27,7 @@ impl TokenLayout {
 // should always be non-empty
 struct Line {
     indent: f64,
-    tokens: Vec<(TokenLayout, f64)>,
+    tokens: Vec<(f64, TokenLayout)>,
     width: f64
 }
 
@@ -39,7 +39,7 @@ impl Line {
 
     fn single(token: TokenLayout) -> Line {
         let width = token.width();
-        Line { indent: 0.0, tokens: vec![(token, 0.0)], width }
+        Line { indent: 0.0, tokens: vec![(0.0, token)], width }
     }
 
     fn is_empty(&self) -> bool {
@@ -47,31 +47,37 @@ impl Line {
     }
 
     fn push(&mut self, t: TokenLayout) {
-        let last = self.tokens.last();
-        let mut pre_margin = last.map(|n| n.0.margin_right).unwrap_or(0.0);
-        let mut pre_sep = last.map(|n| n.0.is_separator).unwrap_or(false);
-        let margin= if t.is_separator {
-            if pre_sep {
-                0.0 // two sep don't have margin
-            } else {
-                t.margin_left
-            }
-        } else {
-            if pre_sep {
-                pre_margin
-            } else {
-                t.margin_left.max(pre_margin)
-            }
-        };
-        self.width += margin + t.width();
-        self.tokens.push((t, margin));
+        match self.tokens.last_mut() {
+            None => {
+                self.width += t.width();
+                self.tokens.push((0.0, t));
+            },
+            Some(last) => {
+                let mut pre_margin = last.1.margin_right;
+                let mut pre_sep = last.1.is_separator;
+                let margin= if t.is_separator {
+                    if pre_sep {
+                        0.0 // two sep don't have margin
+                    } else {
+                        t.margin_left
+                    }
+                } else {
+                    if pre_sep {
+                        pre_margin
+                    } else {
+                        t.margin_left.max(pre_margin)
+                    }
+                };
+                self.width += margin + t.width();
+                self.tokens.push((margin, t));
+            },
+        }
     }
 
     fn append(&mut self, mut other: Line) {
         if !other.is_empty() {
-            let (t, m) = other.tokens.remove(0);
+            let ( _, t) = other.tokens.remove(0);
             self.push(t);
-            self.tokens.last_mut().unwrap().1 = m;
             self.tokens.append(&mut other.tokens);
         }
     }
@@ -114,6 +120,7 @@ impl Block {
         }
         self.lines.append(&mut b.lines);
     }
+
     fn append(&mut self, res: LayoutResult) {
         let mut last = &mut self.lines.last_mut().unwrap();
         match res {
@@ -253,17 +260,19 @@ impl Widget<u64> for EditorState {
             let tokens = &line.tokens;
             let mut ascent: f64 = 0.0;
             let mut descent_and_leading: f64 = 0.0;
-            for (token, _) in tokens {
+            for (_, token) in tokens {
                 let metrics = token.layout.line_metric(0).unwrap();
                 ascent = ascent.max(metrics.baseline);
                 descent_and_leading = descent_and_leading.max(metrics.height - metrics.baseline);
             }
             let height = ascent + descent_and_leading;
-            for (token, margin) in tokens {
-                let width = token.layout.width();
+            for token in tokens {
+                left += token.0;
+                let token = &token.1;
                 //println!("{}, {}", width, height);
                 ctx.draw_text(&token.layout, Point::new(left, top + ascent), &style(self.language.token_type(token.token.tp)));
-                left += width + margin;
+                let width = token.layout.width();
+                left += width;
             }
             top += height;
         }
@@ -285,7 +294,7 @@ impl LayoutParams<'_, '_> {
             f64::MAX,
         ).build().unwrap();
         let is_sep = match tp { TokenType::Separator => true, _ => false };
-        let margin = if is_sep { 0.0 } else { 8.0 };
+        let margin = if is_sep { 2.0 } else { 8.0 };
         LayoutResult::Single(TokenLayout {
             token,
             margin_left: margin,
