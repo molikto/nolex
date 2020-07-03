@@ -1,6 +1,6 @@
 use editor::*;
-use druid::widget::{Checkbox, Flex, Label, MainAxisAlignment, Padding, Parse, Stepper, Switch, TextBox, WidgetExt, Scroll};
-use druid::{AppLauncher, Data, Lens, LensExt, LensWrap, LocalizedString, Widget, WindowDesc};
+use druid::widget::{Scroll};
+use druid::{AppLauncher, LocalizedString, Widget, WindowDesc};
 
 
 pub mod languages;

@@ -4,8 +4,6 @@ use druid::{Point, Color};
 use tree_sitter::{Parser, Node, Tree};
 
 use crate::*;
-use crate::languages::json;
-use std::ops::DerefMut;
 
 // TODO partial layout by using layout focus & offset etc. handle scroll ourselves
 // TODO reuse text layout for commonly created strs with same attribute?
@@ -53,8 +51,8 @@ impl Line {
                 self.tokens.push((0.0, t));
             },
             Some(last) => {
-                let mut pre_margin = last.1.margin_right;
-                let mut pre_sep = last.1.is_separator;
+                let pre_margin = last.1.margin_right;
+                let pre_sep = last.1.is_separator;
                 let margin= if t.is_separator {
                     if pre_sep {
                         0.0 // two sep don't have margin
@@ -114,7 +112,7 @@ impl Block {
     }
 
     fn append_block(&mut self, mut b: Block) {
-        let mut last = &mut self.lines.last_mut().unwrap();
+        let last = &mut self.lines.last_mut().unwrap();
         if last.is_empty() {
             self.lines.remove(self.lines.len() - 1);
         }
@@ -127,8 +125,8 @@ impl Block {
             LayoutResult::Single(a) => {
                 last.push(a)
             }
-            LayoutResult::Line(mut l) => last.append(l),
-            LayoutResult::Block(mut b) => {
+            LayoutResult::Line(l) => last.append(l),
+            LayoutResult::Block(b) => {
                 self.append_block(b)
             }
         }
@@ -202,7 +200,7 @@ impl EditorState {
             Token::new(11, "true"),
             Token::new(3, "}")
         ];
-        let language: &'static Language = &crate::languages::json::instance;
+        let language: &'static Language = &crate::languages::json::INSTANCE;
         let tps: Vec<u8> = tokens.iter().map(|n| n.tp as u8).collect();
         let mut parser = Parser::new();
         parser.set_language(language.language).unwrap();
@@ -240,27 +238,27 @@ fn style(tp: &TokenSpec) -> Color {
 }
 
 impl Widget<u64> for EditorState {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut u64, env: &Env) {
+    fn event(&mut self, ctx: &mut EventCtx, _event: &Event, _data: &mut u64, _env: &Env) {
         ctx.request_focus()
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &u64, env: &Env) {}
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &u64, _env: &Env) {}
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &u64, data: &u64, env: &Env) {}
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &u64, _data: &u64, _env: &Env) {}
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &u64, env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &u64, _env: &Env) -> Size {
         let mut text = ctx.text();
         if self.font.is_none() {
             self.font = Some(text.new_font_by_name("JetBrains Mono", 14.0).build().unwrap());
         }
         let width = bc.max().width;
-        let mut text = ctx.text();
+        let text = ctx.text();
         self.layout = LayoutParams { state: self, ctx: text, indent: 12.0 }.layout_node(self.tree.root_node(), width).to_lines();
         self.max_width = width;
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &u64, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, _data: &u64, _env: &Env) {
         let layout = &self.layout;
         let mut top = 0.0;
         for line in layout {
@@ -346,7 +344,7 @@ impl LayoutParams<'_, '_> {
                 if is_block {
                     let mut block = Block::new();
                     let mut inside = false;
-                    for (role, mut child) in children_layout {
+                    for (role, child) in children_layout {
                         if start.contains(&role) {
                             block.append(child);
                             inside = true;
@@ -359,7 +357,9 @@ impl LayoutParams<'_, '_> {
                         } else {
                             block.nl();
                             let mut bl = child.to_block();
-                            bl.indent(self.indent);
+                            if inside {
+                                bl.indent(self.indent);
+                            }
                             block.append_block(bl);
                         }
                     }
@@ -371,7 +371,7 @@ impl LayoutParams<'_, '_> {
                             LayoutResult::Single(a) => {
                                 line.push(a);
                             }
-                            LayoutResult::Line(mut b) => {
+                            LayoutResult::Line(b) => {
                                 line.append(b);
                             }
                             _ => panic!("not possible")
@@ -388,7 +388,7 @@ impl LayoutParams<'_, '_> {
                 while has_child {
                     let node = cursor.node();
                     let child_max_width = max_width - current_width;
-                    let mut layout = self.layout_node(node, child_max_width);
+                    let layout = self.layout_node(node, child_max_width);
                     block.append(layout);
                     current_width = block.lines.last_mut().unwrap().width();
                     has_child = cursor.goto_next_sibling();

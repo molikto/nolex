@@ -1,5 +1,3 @@
-use tree_sitter::{Parser, Node};
-use druid::Color;
 use regex::Regex;
 use lazy_static::lazy_static;
 
@@ -7,7 +5,7 @@ use lazy_static::lazy_static;
 use crate::*;
 
 lazy_static! {
-  pub static ref instance: crate::Language = create();
+  pub static ref INSTANCE: crate::Language = create();
 }
 
 fn create() -> crate::Language {

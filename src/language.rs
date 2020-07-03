@@ -1,5 +1,4 @@
-use tree_sitter::Parser;
-use crate::{Token, TokenSpec, NodeSpec};
+use crate::{NodeSpec};
 
 
 // TOKENS, nodes
