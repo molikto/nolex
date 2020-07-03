@@ -222,7 +222,7 @@ fn style(tp: TokenType) -> Color {
         TokenType::Keyword => {
             Color::rgb8(204, 120, 55)
         },
-        TokenType::Const => {
+        TokenType::Literal=> {
             Color::rgb8(106, 135, 89)
         },
         TokenType::Unspecified => {

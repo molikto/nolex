@@ -57,7 +57,7 @@ impl crate::Language for Json {
     fn token_type(&self, tp: u16) -> TokenType {
         assert!(tp < 12);
         if tp == 7 || tp == 8 {
-            TokenType::Const
+            TokenType::Literal
         } else if tp == 9 || tp == 10 || tp == 11 {
             TokenType::Keyword
         } else if tp == 2 || tp == 4 {

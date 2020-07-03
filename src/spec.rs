@@ -13,10 +13,39 @@ pub struct Spec {
 }
 
 
+
+#[derive(Clone)]
+pub enum ConstantTokenSemantics {
+    /// this is special in layout calculation because how they interact with margins,
+    /// it always invalidate it's siblings margin because a separator acts as a space itself
+    Separator,
+    Delimiter,
+    Keyword,
+}
+
+#[derive(Clone, Debug)]
+pub enum FreeTokenSemantics {
+    Literal,
+    Unspecified
+}
+
 #[derive(Clone, Debug)]
 pub enum TokenSpec {
-    Constant(&'static str),
-    Regex { name: &'static str, regex: Regex }
+    Constant {
+        str: &'static str,
+        is_separator: bool, // these will not be padded
+        semantics: ConstantTokenSemantics
+    },
+    Regex {
+        name: &'static str,
+        regex: Regex,
+        // info should be consistent with regex
+        can_empty: bool,
+        can_space: bool,
+        breakable: bool,
+        semantics: FreeTokenSemantics
+    }
+    // LATER can have shaping settings: logic order or not, complex shaping or not, show codepoint instead...
 }
 
 #[derive(Clone, Debug)]
@@ -55,15 +84,17 @@ pub struct Rule {
     body: Syntax
 }
 
+
+//
+//
+
 #[derive(Clone, Debug)]
 pub enum TokenType {
-    /// this is special in layout calculation because how they interact with margins,
-    /// it always invalidate it's siblings margin because a separator acts as a space itself
     Separator,
     // these doens't  have any more meanings, we use them mainly to do default highlighting
     Delimiter,
     Keyword,
-    Const, // TODO breakable
+    Literal, // TODO breakable
     Unspecified
 }
 
