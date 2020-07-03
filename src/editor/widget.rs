@@ -26,18 +26,20 @@ impl TokenLayout {
 struct Line {
     indent: f64,
     tokens: Vec<(f64, TokenLayout)>,
+    ascent: f64,
+    descent: f64,
     width: f64
 }
 
 
 impl Line {
     fn new() -> Line {
-        Line { indent: 0.0, tokens: vec![],  width: 0.0 }
+        Line { indent: 0.0, tokens: vec![],  width: 0.0, ascent: 0.0, descent: 0.0 }
     }
 
     fn single(token: TokenLayout) -> Line {
         let width = token.width();
-        Line { indent: 0.0, tokens: vec![(0.0, token)], width }
+        Line { indent: 0.0, tokens: vec![(0.0, token)], width, ascent: 0.0, descent: 0.0 }
     }
 
     fn is_empty(&self) -> bool {
@@ -45,6 +47,9 @@ impl Line {
     }
 
     fn push(&mut self, t: TokenLayout) {
+        let metrics = t.layout.line_metric(0).unwrap();
+        self.ascent = self.ascent.max(metrics.baseline);
+        self.descent = self.descent.max(metrics.height - metrics.baseline);
         match self.tokens.last_mut() {
             None => {
                 self.width += t.width();
@@ -75,7 +80,11 @@ impl Line {
     fn append(&mut self, mut other: Line) {
         if !other.is_empty() {
             let ( _, t) = other.tokens.remove(0);
+            // TODO the width calculation seems a bit off??
+            self.width += other.width - t.width();
             self.push(t);
+            self.ascent = self.ascent.max(other.ascent);
+            self.descent = self.descent.max(other.descent);
             self.tokens.append(&mut other.tokens);
         }
     }
@@ -249,9 +258,6 @@ fn style(tp: &TokenSpec) -> Color {
 
 impl Widget<u64> for EditorState {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut u64, _env: &Env) {
-        match event {
-
-        }
         ctx.request_focus()
     }
 
@@ -276,26 +282,17 @@ impl Widget<u64> for EditorState {
         let cursor = match self.cursor {
             Cursor::Point { token, pos } => (token, pos),
         };
-        // draw cursor
-        // draw texts
         let mut top = 0.0;
         let mut token_pos: usize = 0;
         for line in layout {
             let mut left = line.indent;
             let tokens = &line.tokens;
-            let mut ascent: f64 = 0.0;
-            let mut descent_and_leading: f64 = 0.0;
-            for (_, token) in tokens {
-                let metrics = token.layout.line_metric(0).unwrap();
-                ascent = ascent.max(metrics.baseline);
-                descent_and_leading = descent_and_leading.max(metrics.height - metrics.baseline);
-            }
-            let height = ascent + descent_and_leading;
+            let height = line.ascent + line.descent;
             for token in tokens {
                 left += token.0;
                 let token = &token.1;
                 // draw cursor
-                let text_pos = Point::new(left, top + ascent);
+                let text_pos = Point::new(left, top + line.ascent);
                 if token_pos == cursor.0 {
                     let cursor_pos: HitTestTextPosition = token.layout.hit_test_text_position(cursor.1).unwrap();
                     let x0 = cursor_pos.point.x + text_pos.x;
@@ -303,8 +300,8 @@ impl Widget<u64> for EditorState {
                     let rect = Rect {
                         x0,
                         x1: x0 + 1.0,
-                        y0: y - ascent,
-                        y1: y + descent_and_leading
+                        y0: y - line.ascent,
+                        y1: y + line.descent
                     };
                     ctx.fill(rect, &Color::grey8(255));
                 }
