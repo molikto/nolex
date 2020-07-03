@@ -13,12 +13,3 @@ impl Token {
 }
 
 pub type Tokens = Vec<Token>;
-
-
-// TODO support breakable text
-pub struct TokenType {
-    pub breakable: bool,
-}
-
-
-

@@ -1,6 +1,6 @@
 use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietTextLayout, PietText};
 use druid::widget::prelude::*;
-use druid::{Point};
+use druid::{Point, Color};
 use tree_sitter::{Parser, Node, Tree};
 
 use crate::*;
@@ -119,6 +119,7 @@ impl LayoutResult {
 
 pub struct EditorState {
     version: u64,
+    language: &'static dyn Language,
     tokens: Tokens,
     parser: Parser,
     tree: Tree,
@@ -144,11 +145,29 @@ impl EditorState {
             Token::new(11, "true"),
             Token::new(3, "}")
         ];
+        let language: &dyn Language = &crate::languages::json::instance;
         let tps: Vec<u8> = tokens.iter().map(|n| n.tp as u8).collect();
-        let mut parser = crate::languages::json::new_parser();
+        let mut parser = language.new_parser();
         let tree = parser.parse(&tps, None).unwrap();
-        let state = EditorState { version: 0, tokens, parser, tree, font: None, layout: vec![], max_width: 0.0 };
+        let state = EditorState { version: 0, language, tokens, parser, tree, font: None, layout: vec![], max_width: 0.0 };
         state
+    }
+}
+
+fn style(tp: TokenType) -> Color {
+    match tp {
+        TokenType::Delimiter => {
+            Color::rgb8(169, 183, 198)
+        },
+        TokenType::Keyword => {
+            Color::rgb8(106, 135, 89)
+        },
+        TokenType::Const => {
+            Color::rgb8(204, 120, 55)
+        },
+        TokenType::Unspecified { .. } => {
+            Color::rgb8(169, 183, 198)
+        },
     }
 }
 
@@ -167,7 +186,6 @@ impl Widget<u64> for EditorState {
             self.font = Some(text.new_font_by_name("JetBrains Mono", 14.0).build().unwrap());
         }
         let width = bc.max().width;
-        // TODO this layout is trivial, we just layout all stuff in a line, without even spaces!
         let mut text = ctx.text();
         self.layout = LayoutParams { state: self, ctx: text, indent: 12.0 }.layout_node(self.tree.root_node(), width).to_lines();
         self.max_width = width;
@@ -191,7 +209,7 @@ impl Widget<u64> for EditorState {
             for token in tokens {
                 let width = token.layout.width();
                 //println!("{}, {}", width, height);
-                ctx.draw_text(&token.layout, Point::new(left, top + ascent), &json::style(&token.token));
+                ctx.draw_text(&token.layout, Point::new(left, top + ascent), &style(self.language.token_type(token.token.tp)));
                 left += width;
             }
             top += height;
@@ -218,91 +236,96 @@ impl LayoutParams<'_, '_> {
 
     fn layout_node(&mut self, node: Node, max_width: f64) -> LayoutResult {
         let error = node.is_error(); // TODO handle this
-        let tp = node.kind_id();
-        if json::is_tree(tp) {
-            let mut cursor = node.walk();
-            let mut children_layout: Vec<(TokenRole, LayoutResult)> = vec![];
-            let mut has_child = cursor.goto_first_child();
-            let mut is_block = false;
-            let mut current_width = 0.0;
-            while has_child {
-                let node = cursor.node();
-                let role = json::token_role(tp, node.kind_id());
-                let child_max_width = if is_block { max_width - self.indent } else { max_width - current_width };
-                let mut layout = self.layout_node(node, child_max_width);
-                match layout {
-                    LayoutResult::Block(_) => {
-                        is_block = true;
-                        // LATER it is possible first item is not a single line after indent is added
-                        layout = self.layout_node(node, max_width - self.indent)
-                    }
-                    _ => {
-                        current_width += layout.width();
-                        // this happens when the items cannot turns into block but it too long anyway
-                        is_block = max_width < current_width;
-                    }
-                }
-                children_layout.push((role, layout));
-                has_child = cursor.goto_next_sibling();
-            }
-            if is_block {
-                let mut block = Block::new();
-                let mut inside = false;
-                for (role, mut child) in children_layout {
-                    match role {
-                        TokenRole::TreeStart => {
-                            block.append(child);
-                            inside = true;
-                        }
-                        TokenRole::TreeEnd => {
-                            inside = false;
-                            block.nl();
-                            block.append(child);
-                        }
-                        TokenRole::Sep => {
-                            block.append(child);
+        // TODO handle extra nodes
+        let nt = node.kind_id();
+        match self.state.language.node_type(nt) {
+            NodeType::TreeRoot => {
+                let mut cursor = node.walk();
+                let mut children_layout: Vec<(NodeRole, LayoutResult)> = vec![];
+                let mut has_child = cursor.goto_first_child();
+                let mut is_block = false;
+                let mut current_width = 0.0;
+                while has_child {
+                    let node = cursor.node();
+                    let role = self.state.language.node_role(nt, node.kind_id());
+                    let child_max_width = if is_block { max_width - self.indent } else { max_width - current_width };
+                    let mut layout = self.layout_node(node, child_max_width);
+                    match layout {
+                        LayoutResult::Block(_) => {
+                            is_block = true;
+                            // LATER it is possible first item is not a single line after indent is added
+                            layout = self.layout_node(node, max_width - self.indent)
                         }
                         _ => {
-                            block.nl();
-                            let mut bl = child.to_block();
-                            bl.indent(self.indent);
-                            block.append_block(bl);
+                            current_width += layout.width();
+                            // this happens when the items cannot turns into block but it too long anyway
+                            is_block = max_width < current_width;
                         }
                     }
+                    children_layout.push((role, layout));
+                    has_child = cursor.goto_next_sibling();
                 }
-                LayoutResult::Block(block)
-            } else {
-                let mut tokens: Vec<TokenLayout> = vec![];
-                for (_, child) in children_layout {
-                    match child {
-                        LayoutResult::Single(a) => {
-                            tokens.push(a);
+                if is_block {
+                    let mut block = Block::new();
+                    let mut inside = false;
+                    for (role, mut child) in children_layout {
+                        match role {
+                            NodeRole::TreeStart => {
+                                block.append(child);
+                                inside = true;
+                            }
+                            NodeRole::TreeEnd => {
+                                inside = false;
+                                block.nl();
+                                block.append(child);
+                            }
+                            NodeRole::Sep => {
+                                block.append(child);
+                            }
+                            _ => {
+                                block.nl();
+                                let mut bl = child.to_block();
+                                bl.indent(self.indent);
+                                block.append_block(bl);
+                            }
                         }
-                        LayoutResult::Line(mut b) => {
-                            tokens.append(&mut b.tokens);
-                        }
-                        _ => panic!("not possible")
                     }
+                    LayoutResult::Block(block)
+                } else {
+                    let mut tokens: Vec<TokenLayout> = vec![];
+                    for (_, child) in children_layout {
+                        match child {
+                            LayoutResult::Single(a) => {
+                                tokens.push(a);
+                            }
+                            LayoutResult::Line(mut b) => {
+                                tokens.append(&mut b.tokens);
+                            }
+                            _ => panic!("not possible")
+                        }
+                    }
+                    LayoutResult::Line(Line { indent: 0.0, tokens })
                 }
-                LayoutResult::Line(Line { indent: 0.0, tokens })
-            }
-        } else if json::is_token(tp) {
-            self.layout_token(node)
-        } else {
-            let mut block = Block::new();
-            let mut cursor = node.walk();
-            let mut has_child = cursor.goto_first_child();
-            let mut current_width = 0.0;
-            while has_child {
-                let node = cursor.node();
-                let role = json::token_role(tp, node.kind_id());
-                let child_max_width = max_width - current_width;
-                let mut layout = self.layout_node(node, child_max_width);
-                block.append(layout);
-                current_width = block.lines.last().unwrap().width();
-                has_child = cursor.goto_next_sibling();
-            }
-            block.wrap()
+            },
+            NodeType::Unspecified => {
+                let mut block = Block::new();
+                let mut cursor = node.walk();
+                let mut has_child = cursor.goto_first_child();
+                let mut current_width = 0.0;
+                while has_child {
+                    let node = cursor.node();
+                    let role = self.state.language.node_role(nt, node.kind_id());
+                    let child_max_width = max_width - current_width;
+                    let mut layout = self.layout_node(node, child_max_width);
+                    block.append(layout);
+                    current_width = block.lines.last().unwrap().width();
+                    has_child = cursor.goto_next_sibling();
+                }
+                block.wrap()
+            },
+            NodeType::Token(_) => {
+                self.layout_token(node)
+            },
         }
     }
 }

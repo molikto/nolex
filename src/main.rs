@@ -7,6 +7,7 @@ pub mod languages;
 pub mod editor;
 pub mod data; pub use data::*;
 pub mod spec; pub use spec::*;
+pub mod language; pub use language::*;
 
 fn build_widget() -> impl Widget<u64> {
     Scroll::new(

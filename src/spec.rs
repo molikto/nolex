@@ -20,7 +20,7 @@ pub enum TokenSpec {
 }
 
 #[derive(Clone, Debug)]
-pub enum TerminalRef {
+pub enum TokenRef {
     Constant(&'static str),
     Regex(&'static str)
 }
@@ -28,7 +28,7 @@ pub enum TerminalRef {
 #[derive(Clone, Debug)]
 pub enum Syntax {
     // terminal rules
-    Terminal(TerminalRef),
+    Token(TokenRef),
     Ref(&'static str),
     Choice(Vec<Syntax>),
     Combine(Vec<Syntax>),
@@ -55,7 +55,23 @@ pub struct Rule {
     body: Syntax
 }
 
-pub enum TokenRole {
+#[derive(Clone, Debug)]
+pub enum TokenType {
+    Delimiter,
+    Keyword,
+    Const,
+    Unspecified { breakable: bool }
+}
+
+#[derive(Clone, Debug)]
+pub enum NodeType {
+    Unspecified,
+    TreeRoot,
+    Token(TokenType)
+}
+
+#[derive(Clone, Debug)]
+pub enum NodeRole {
     Unspecified,
     TreeStart,
     TreeEnd,
