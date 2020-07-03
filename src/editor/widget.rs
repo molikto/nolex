@@ -1,9 +1,10 @@
 use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietTextLayout, PietText, HitTestTextPosition};
 use druid::widget::prelude::*;
-use druid::{Point, Color, Rect};
+use druid::{Point, Color, Rect, WidgetPod};
 use tree_sitter::{Parser, Node, Tree};
 
 use crate::*;
+use druid::widget::TextBox;
 
 // TODO partial layout by using layout focus & offset etc. handle scroll ourselves
 // TODO reuse text layout for commonly created strs with same attribute?
@@ -196,6 +197,7 @@ pub struct EditorState {
     font: Option<PietFont>,
     max_width: f64,
     layout: Vec<Line>,
+    text_box: WidgetPod<String, TextBox>
 }
 
 impl EditorState {
@@ -221,11 +223,14 @@ impl EditorState {
         parser.set_language(language.language).unwrap();
         let tree = parser.parse(&tps, None).unwrap();
         let cursor = Cursor::Point { token: 0, pos: 0 };
+        let text_box = WidgetPod::new(TextBox::new());
         let state = EditorState {
             version: 0, language, parser,
             tokens, cursor,
             tree,
-            font: None, layout: vec![], max_width: 0.0 };
+            text_box,
+            font: None, layout: vec![], max_width: 0.0,
+        };
         state
     }
 }
@@ -257,15 +262,19 @@ fn style(tp: &TokenSpec) -> Color {
 }
 
 impl Widget<u64> for EditorState {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut u64, _env: &Env) {
-        ctx.request_focus()
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut u64, env: &Env) {
+        self.inner.event(ctx, event, data, env);
     }
 
-    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &u64, _env: &Env) {}
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &u64, env: &Env) {
+        self.inner.lifecycle(ctx, event, data, env);
+    }
 
-    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &u64, _data: &u64, _env: &Env) {}
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &u64, data: &u64, env: &Env) {
+        self.text_box.update(ctx,   &String::from("test"), env);
+    }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &u64, _env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &u64, env: &Env) -> Size {
         let mut text = ctx.text();
         if self.font.is_none() {
             self.font = Some(text.new_font_by_name("JetBrains Mono", 14.0).build().unwrap());
@@ -274,6 +283,7 @@ impl Widget<u64> for EditorState {
         let text = ctx.text();
         self.layout = LayoutParams { state: self, ctx: text, indent: 12.0 }.layout_node(self.tree.root_node(), width).to_lines();
         self.max_width = width;
+        self.text_box.layout(ctx, bc, &String::from("test"), env);
         bc.max()
     }
 
