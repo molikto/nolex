@@ -1,14 +1,12 @@
 use tree_sitter::Parser;
-use crate::{Token, NodeType, NodeRole, TokenType};
+use crate::{Token, TokenSpec, NodeSpec};
 
 
 // TOKENS, nodes
 // token_type, node_type
-pub trait Language {
-    fn new_parser(&self) -> Parser;
-    // TODO handle cases like |x|, where left and right is the same
-    fn node_role(&self, parent_tp: u16, node_tp: u16) -> NodeRole;
-    fn token_type(&self, tp: u16) -> TokenType;
-    fn node_type(&self, tp: u16) -> NodeType;
+pub struct Language {
+    pub nodes: Vec<NodeSpec>,
+    pub lex_error: u16,
+    pub language: tree_sitter::Language
 }
 

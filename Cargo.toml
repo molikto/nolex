@@ -11,3 +11,4 @@ cc="*"
 druid = { git = "https://github.com/linebender/druid.git" }
 tree-sitter = "0.16.1"
 regex = "1"
+lazy_static = "1.4.0"

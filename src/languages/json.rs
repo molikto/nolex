@@ -1,79 +1,83 @@
-use tree_sitter::{Parser, Language, Node};
+use tree_sitter::{Parser, Node};
 use druid::Color;
+use regex::Regex;
+use lazy_static::lazy_static;
+
 
 use crate::*;
 
-
-pub struct Json {}
-
-pub const instance: Json = Json { };
-
-extern "C" { fn tree_sitter_json() -> Language; }
-
-
-fn language() -> Language {
-    unsafe { tree_sitter_json() }
+lazy_static! {
+  pub static ref instance: crate::Language = create();
 }
 
-impl crate::Language for Json {
-    fn new_parser(&self) -> Parser {
-        let mut parser = Parser::new();
-        parser.set_language(language()).unwrap();
-        parser
-    }
-
-    fn node_role(&self, parent_tp: u16, node_tp: u16) -> NodeRole {
-        if parent_tp == 14 {
-            if node_tp == 1 {
-                NodeRole::TreeStart
-            } else if node_tp == 2 {
-                NodeRole::Sep
-            } else if node_tp == 3 {
-                NodeRole::TreeEnd
-            } else {
-                NodeRole::Unspecified
+fn create() -> crate::Language {
+    crate::Language {
+        nodes: vec![
+            unused_node_spec(), // 0
+            NodeSpec::Token(TokenSpec::delimiter("{")), // 1
+            NodeSpec::Token(TokenSpec::separator(",")), // 2
+            NodeSpec::Token(TokenSpec::delimiter("}")), // 3
+            NodeSpec::Token(TokenSpec::separator(":")), // 4
+            NodeSpec::Token(TokenSpec::delimiter("[")), // 5
+            NodeSpec::Token(TokenSpec::delimiter("]")), // 6
+            NodeSpec::Token(TokenSpec::Regex { // 7
+                name: "string",
+                regex: Regex::new(".*").unwrap(),
+                precedence: 0,
+                can_empty: true,
+                can_space: true,
+                can_newline: true,
+                can_wrap: true,
+                semantics: FreeTokenSemantics::Literal
+            }),
+            NodeSpec::Token(TokenSpec::Regex { // 8
+                name: "number",
+                regex: Regex::new(".*").unwrap(), // TODO
+                precedence: 10,
+                can_empty: true,
+                can_space: true,
+                can_newline: true,
+                can_wrap: true,
+                semantics: FreeTokenSemantics::Literal
+            }),
+            NodeSpec::Token(TokenSpec::keyword("true")), // 9 (11
+            NodeSpec::Token(TokenSpec::keyword("false")), // 10 (12
+            NodeSpec::Token(TokenSpec::keyword("null")), // 11 (13
+            // error node, precedence higher than string, error is handled by a catch all node like literal string
+            // unreachable from syntax rules
+            // **higher precedence** than string node (precedence only compared within candidate tokens)
+            NodeSpec::Token(TokenSpec::Regex { // 12 (14
+                name: "",
+                regex: Regex::new(".*").unwrap(), // TODO
+                precedence: 1,
+                can_empty: true,
+                can_space: true,
+                can_newline: true,
+                can_wrap: true,
+                semantics: FreeTokenSemantics::Literal
+            }),
+            NodeSpec::Compose, // 13
+            unused_node_spec(), // 14
+            NodeSpec::Tree {  // 15 object
+                start: vec![1],
+                sep: vec![2],
+                end: vec![3]
+            },
+            NodeSpec::Compose,
+            NodeSpec::Tree {
+                start: vec![5],
+                sep: vec![2],
+                end: vec![6]
             }
-        } else if parent_tp == 16 {
-            if node_tp == 5 {
-                NodeRole::TreeStart
-            } else if node_tp == 2 {
-                NodeRole::Sep
-            } else if node_tp == 6 {
-                NodeRole::TreeEnd
-            } else {
-                NodeRole::Unspecified
-            }
-        } else if parent_tp == 15 {
-            if node_tp == 2 {
-                NodeRole::Sep
-            } else {
-                NodeRole::Unspecified
-            }
-        } else {
-            NodeRole::Unspecified
-        }
+        ],
+        lex_error: 12,
+        language: language()
     }
+}
 
-    fn token_type(&self, tp: u16) -> TokenType {
-        assert!(tp < 12);
-        if tp == 7 || tp == 8 {
-            TokenType::Literal
-        } else if tp == 9 || tp == 10 || tp == 11 {
-            TokenType::Keyword
-        } else if tp == 2 || tp == 4 {
-            TokenType::Separator
-        } else {
-            TokenType::Delimiter
-        }
-    }
+extern "C" { fn tree_sitter_json() -> tree_sitter::Language; }
 
-    fn node_type(&self, tp: u16) -> NodeType {
-        if tp == 14 || tp == 16 {
-            NodeType::TreeRoot
-        } else if tp >= 1 && tp < 12 {
-            NodeType::Token(self.token_type(tp))
-        } else {
-            NodeType::Unspecified
-        }
-    }
+
+fn language() -> tree_sitter::Language {
+    unsafe { tree_sitter_json() }
 }

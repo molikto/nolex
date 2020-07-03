@@ -176,9 +176,9 @@ impl LayoutResult {
 
 pub struct EditorState {
     version: u64,
-    language: &'static dyn Language,
-    tokens: Tokens,
+    language: &'static Language,
     parser: Parser,
+    tokens: Tokens,
     tree: Tree,
     font: Option<PietFont>,
     max_width: f64,
@@ -202,32 +202,40 @@ impl EditorState {
             Token::new(11, "true"),
             Token::new(3, "}")
         ];
-        let language: &dyn Language = &crate::languages::json::instance;
+        let language: &'static Language = &crate::languages::json::instance;
         let tps: Vec<u8> = tokens.iter().map(|n| n.tp as u8).collect();
-        let mut parser = language.new_parser();
+        let mut parser = Parser::new();
+        parser.set_language(language.language).unwrap();
         let tree = parser.parse(&tps, None).unwrap();
-        let state = EditorState { version: 0, language, tokens, parser, tree, font: None, layout: vec![], max_width: 0.0 };
+        let state = EditorState {
+            version: 0, language, parser, tokens, tree, font: None, layout: vec![], max_width: 0.0 };
         state
     }
 }
 
-fn style(tp: TokenType) -> Color {
+fn style(tp: &TokenSpec) -> Color {
     match tp {
-        TokenType::Delimiter => {
-            Color::rgb8(0, 183, 198)
-        },
-        TokenType::Separator => {
-            Color::rgb8(169, 0, 198)
-        }
-        TokenType::Keyword => {
-            Color::rgb8(204, 120, 55)
-        },
-        TokenType::Literal=> {
-            Color::rgb8(106, 135, 89)
-        },
-        TokenType::Unspecified => {
-            Color::rgb8(169, 183, 198)
-        },
+        TokenSpec::Constant { semantics, .. } =>
+            match semantics {
+                ConstantTokenSemantics::Separator => {
+                    Color::rgb8(169, 0, 198)
+                },
+                ConstantTokenSemantics::Delimiter => {
+                    Color::rgb8(0, 183, 198)
+                },
+                ConstantTokenSemantics::Keyword => {
+                    Color::rgb8(204, 120, 55)
+                },
+            },
+        TokenSpec::Regex { semantics, .. } =>
+            match semantics {
+                FreeTokenSemantics::Literal => {
+                    Color::rgb8(106, 135, 89)
+                },
+                FreeTokenSemantics::Unspecified => {
+                    Color::rgb8(169, 183, 198)
+                },
+            }
     }
 }
 
@@ -270,7 +278,7 @@ impl Widget<u64> for EditorState {
                 left += token.0;
                 let token = &token.1;
                 //println!("{}, {}", width, height);
-                ctx.draw_text(&token.layout, Point::new(left, top + ascent), &style(self.language.token_type(token.token.tp)));
+                ctx.draw_text(&token.layout, Point::new(left, top + ascent), &style(&self.language.nodes[token.token.tp as usize].unwrap_as_token()));
                 let width = token.layout.width();
                 left += width;
             }
@@ -286,14 +294,14 @@ struct LayoutParams<'a, 'c> {
 }
 
 impl LayoutParams<'_, '_> {
-    fn layout_token(&mut self, node: Node, tp: TokenType) -> LayoutResult {
+    fn layout_token(&mut self, node: Node, tp: &TokenSpec) -> LayoutResult {
         let token = self.state.tokens[node.start_byte()].clone();
         let layout = self.ctx.new_text_layout(
             self.state.font.as_ref().unwrap(),
             &token.str,
             f64::MAX,
         ).build().unwrap();
-        let is_sep = match tp { TokenType::Separator => true, _ => false };
+        let is_sep = match tp { TokenSpec::Constant {is_separator, .. }=> *is_separator, _ => false };
         let margin = if is_sep { 2.0 } else { 8.0 };
         LayoutResult::Single(TokenLayout {
             token,
@@ -308,16 +316,16 @@ impl LayoutParams<'_, '_> {
         let error = node.is_error(); // TODO handle this
         // TODO handle extra nodes
         let nt = node.kind_id();
-        match self.state.language.node_type(nt) {
-            NodeType::TreeRoot => {
+        match &self.state.language.nodes[nt as usize] {
+            NodeSpec::Tree { start, sep, end } => {
                 let mut cursor = node.walk();
-                let mut children_layout: Vec<(NodeRole, LayoutResult)> = vec![];
+                let mut children_layout: Vec<(u16, LayoutResult)> = vec![];
                 let mut has_child = cursor.goto_first_child();
                 let mut is_block = false;
                 let mut current_width = 0.0;
                 while has_child {
                     let node = cursor.node();
-                    let role = self.state.language.node_role(nt, node.kind_id());
+                    let kind = node.kind_id();
                     let child_max_width = if is_block { max_width - self.indent } else { max_width - current_width };
                     let mut layout = self.layout_node(node, child_max_width);
                     match layout {
@@ -332,32 +340,27 @@ impl LayoutParams<'_, '_> {
                             is_block = max_width < current_width;
                         }
                     }
-                    children_layout.push((role, layout));
+                    children_layout.push((kind, layout));
                     has_child = cursor.goto_next_sibling();
                 }
                 if is_block {
                     let mut block = Block::new();
                     let mut inside = false;
                     for (role, mut child) in children_layout {
-                        match role {
-                            NodeRole::TreeStart => {
-                                block.append(child);
-                                inside = true;
-                            }
-                            NodeRole::TreeEnd => {
-                                inside = false;
-                                block.nl();
-                                block.append(child);
-                            }
-                            NodeRole::Sep => {
-                                block.append(child);
-                            }
-                            _ => {
-                                block.nl();
-                                let mut bl = child.to_block();
-                                bl.indent(self.indent);
-                                block.append_block(bl);
-                            }
+                        if start.contains(&role) {
+                            block.append(child);
+                            inside = true;
+                        } else if end.contains(&role) {
+                            inside = false;
+                            block.nl();
+                            block.append(child);
+                        } else if sep.contains(&role) {
+                            block.append(child);
+                        } else {
+                            block.nl();
+                            let mut bl = child.to_block();
+                            bl.indent(self.indent);
+                            block.append_block(bl);
                         }
                     }
                     LayoutResult::Block(block)
@@ -377,14 +380,13 @@ impl LayoutParams<'_, '_> {
                     LayoutResult::Line(line)
                 }
             },
-            NodeType::Unspecified => {
+            NodeSpec::Compose => {
                 let mut block = Block::new();
                 let mut cursor = node.walk();
                 let mut has_child = cursor.goto_first_child();
                 let mut current_width = 0.0;
                 while has_child {
                     let node = cursor.node();
-                    let role = self.state.language.node_role(nt, node.kind_id());
                     let child_max_width = max_width - current_width;
                     let mut layout = self.layout_node(node, child_max_width);
                     block.append(layout);
@@ -393,7 +395,7 @@ impl LayoutParams<'_, '_> {
                 }
                 block.wrap()
             },
-            NodeType::Token(tp) => {
+            NodeSpec::Token(tp) => {
                 self.layout_token(node, tp)
             },
         }
