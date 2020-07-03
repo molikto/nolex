@@ -26,8 +26,13 @@ ideally the grammar is created within nolex, but because we internally use Tree-
 so it is hard to generate the source code at runtime.
 * our use of TreeSitter it a hack, we only use it to parse but not lex, but these two part of code needs to keep in sync.
 
-## TODO
+## roadmap
 
+* MVP
+    * layout
+        * proper spaces
+        * incremental
+    * editing
 * support comments
     * it can be a metadata of `Token`?
     * or a special `Token.id`? this means the parser should handle this, and complicates the AST

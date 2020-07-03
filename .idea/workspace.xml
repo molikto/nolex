@@ -14,14 +14,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2f6a9c2a-a083-4648-a626-5566607c432b" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/src/language.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/data.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/data.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/editor/widget.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/editor/widget.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/languages/json.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/languages/json.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/languages/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/languages/mod.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/spec.rs" beforeDir="false" afterPath="$PROJECT_DIR$/src/spec.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -149,22 +142,22 @@
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
     <state x="1314" y="477" key="#com.intellij.refactoring.safeDelete.UnsafeUsagesDialog/0.23.2560.1367@0.23.2560.1367" timestamp="1593677541719" />
-    <state width="1756" height="427" key="GridCell.Tab.0.bottom" timestamp="1593739065072">
+    <state width="1756" height="427" key="GridCell.Tab.0.bottom" timestamp="1593739368075">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state width="1756" height="427" key="GridCell.Tab.0.bottom/0.23.2560.1367@0.23.2560.1367" timestamp="1593739065072" />
-    <state width="1756" height="427" key="GridCell.Tab.0.center" timestamp="1593739065072">
+    <state width="1756" height="427" key="GridCell.Tab.0.bottom/0.23.2560.1367@0.23.2560.1367" timestamp="1593739368075" />
+    <state width="1756" height="427" key="GridCell.Tab.0.center" timestamp="1593739368075">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state width="1756" height="427" key="GridCell.Tab.0.center/0.23.2560.1367@0.23.2560.1367" timestamp="1593739065072" />
-    <state width="1756" height="427" key="GridCell.Tab.0.left" timestamp="1593739065072">
+    <state width="1756" height="427" key="GridCell.Tab.0.center/0.23.2560.1367@0.23.2560.1367" timestamp="1593739368075" />
+    <state width="1756" height="427" key="GridCell.Tab.0.left" timestamp="1593739368074">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state width="1756" height="427" key="GridCell.Tab.0.left/0.23.2560.1367@0.23.2560.1367" timestamp="1593739065072" />
-    <state width="1756" height="427" key="GridCell.Tab.0.right" timestamp="1593739065072">
+    <state width="1756" height="427" key="GridCell.Tab.0.left/0.23.2560.1367@0.23.2560.1367" timestamp="1593739368074" />
+    <state width="1756" height="427" key="GridCell.Tab.0.right" timestamp="1593739368075">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
-    <state width="1756" height="427" key="GridCell.Tab.0.right/0.23.2560.1367@0.23.2560.1367" timestamp="1593739065072" />
+    <state width="1756" height="427" key="GridCell.Tab.0.right/0.23.2560.1367@0.23.2560.1367" timestamp="1593739368075" />
     <state x="991" y="295" key="SettingsEditor" timestamp="1593668596247">
       <screen x="0" y="23" width="2560" height="1367" />
     </state>
