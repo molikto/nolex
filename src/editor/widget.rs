@@ -164,7 +164,7 @@ impl Widget<u64> for EditorState {
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &u64, env: &Env) -> Size {
         let mut text = ctx.text();
         if self.font.is_none() {
-            self.font = Some(text.new_font_by_name("JetBrains Mono Regular", 14.0).build().unwrap());
+            self.font = Some(text.new_font_by_name("JetBrains Mono", 14.0).build().unwrap());
         }
         let width = bc.max().width;
         // TODO this layout is trivial, we just layout all stuff in a line, without even spaces!
