@@ -328,7 +328,7 @@ impl Widget<u64> for EditorWidget {
             language: &data.language,
             widget: self,
             ctx: text, indent: 12.0
-        }.layout_node(data.tree.root_node(), width).to_lines();
+        }.layout_node(data.tree.root_node(), 0, width).to_lines();
         self.max_width = width;
         bc.max()
     }
@@ -406,10 +406,12 @@ impl LayoutParams<'_, '_, '_> {
         ))
     }
 
-    fn layout_node(&mut self, node: Node, max_width: f64) -> LayoutResult {
+    fn layout_node(&mut self, node: Node, depth: i32, max_width: f64) -> LayoutResult {
         let error = node.is_error(); // TODO handle this
-        // TODO handle extra nodes
         let nt = node.kind_id();
+        if node.is_missing() { panic!() }; // we don't know what to do yet.
+        if node.is_extra() && nt != 65535 { panic!("extra node is not handled {}", nt) }; // we don't know what to do yet.
+        // TODO handle extra nodes
         match &self.language.node(nt) {
             NodeSpec::Tree { start, sep, end } => {
                 let mut cursor = node.walk();
@@ -421,12 +423,12 @@ impl LayoutParams<'_, '_, '_> {
                     let node = cursor.node();
                     let kind = node.kind_id();
                     let child_max_width = if is_block { max_width - self.indent } else { max_width - current_width };
-                    let mut layout = self.layout_node(node, child_max_width);
+                    let mut layout = self.layout_node(node, depth + 1, child_max_width);
                     match layout {
                         LayoutResult::Block(_) => {
                             is_block = true;
                             // LATER it is possible first item is not a single line after indent is added
-                            layout = self.layout_node(node, max_width - self.indent)
+                            layout = self.layout_node(node,  depth + 1, max_width - self.indent)
                         }
                         _ => {
                             current_width += layout.width();
@@ -487,7 +489,7 @@ impl LayoutParams<'_, '_, '_> {
                 while has_child {
                     let node = cursor.node();
                     let child_max_width = max_width - current_width;
-                    let layout = self.layout_node(node, child_max_width);
+                    let layout = self.layout_node(node, depth + 1, child_max_width);
                     block.append(layout);
                     current_width = block.last_width();
                     has_child = cursor.goto_next_sibling();
