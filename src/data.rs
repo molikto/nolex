@@ -13,4 +13,5 @@ impl Token {
     }
 }
 
+// TODO are vectors really have fast clone?
 pub type Tokens = Vector<Token>;

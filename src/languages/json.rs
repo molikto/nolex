@@ -9,8 +9,8 @@ lazy_static! {
 }
 
 fn create() -> crate::Language {
-    crate::Language {
-        nodes: vec![
+    crate::Language::new(
+        vec![
             unused_node_spec(), // 0
             NodeSpec::Token(TokenSpec::delimiter("{")), // 1
             NodeSpec::Token(TokenSpec::separator(",")), // 2
@@ -30,12 +30,12 @@ fn create() -> crate::Language {
             }),
             NodeSpec::Token(TokenSpec::Regex { // 8
                 name: "number",
-                regex: Regex::new(".*").unwrap(), // TODO
+                regex: Regex::new(r#"-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?"#).unwrap(), // TODO
                 precedence: 10,
-                can_empty: true,
-                can_space: true,
-                can_newline: true,
-                can_wrap: true,
+                can_empty: false,
+                can_space: false,
+                can_newline: false,
+                can_wrap: false,
                 semantics: FreeTokenSemantics::Literal
             }),
             NodeSpec::Token(TokenSpec::keyword("true")), // 9 (11
@@ -46,13 +46,13 @@ fn create() -> crate::Language {
             // **higher precedence** than string node (precedence only compared within candidate tokens)
             NodeSpec::Token(TokenSpec::Regex { // 12 (14
                 name: "",
-                regex: Regex::new(".*").unwrap(), // TODO
+                regex: Regex::new(".*").unwrap(),
                 precedence: 1,
                 can_empty: true,
                 can_space: true,
                 can_newline: true,
                 can_wrap: true,
-                semantics: FreeTokenSemantics::Literal
+                semantics: FreeTokenSemantics::LexingError
             }),
             NodeSpec::Compose, // 13
             unused_node_spec(), // 14
@@ -68,9 +68,8 @@ fn create() -> crate::Language {
                 end: vec![6]
             }
         ],
-        lex_error: 12,
-        language: language()
-    }
+        language()
+    )
 }
 
 extern "C" { fn tree_sitter_json() -> tree_sitter::Language; }

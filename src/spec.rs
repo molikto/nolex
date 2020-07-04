@@ -26,7 +26,8 @@ pub enum ConstantTokenSemantics {
 #[derive(Clone, Debug)]
 pub enum FreeTokenSemantics {
     Literal,
-    Unspecified
+    Unspecified,
+    LexingError
 }
 
 #[derive(Clone, Debug)]
@@ -61,6 +62,20 @@ pub enum TokenSpec {
 }
 
 impl TokenSpec {
+    pub fn is_separator(&self) -> bool {
+        match self {
+            TokenSpec::Constant { is_separator, .. } => *is_separator,
+            _ => false
+        }
+    }
+
+    pub fn accept(&self, string: &str) -> bool {
+        match self {
+            TokenSpec::Constant { str, .. } => *str == string,
+            TokenSpec::Regex { regex, .. } => regex.is_match(string),
+        }
+    }
+
     pub fn delimiter(str: &'static str) -> TokenSpec {
         TokenSpec::Constant {
             str,
@@ -97,15 +112,16 @@ pub enum NodeSpec {
         sep: Vec<u16>,
         end: Vec<u16>
     },
-    Compose
+    Compose,
+    Error
 }
 
+
 impl NodeSpec {
-    pub fn unwrap_as_token(&self) -> &TokenSpec {
+    pub fn as_token(&self) -> &TokenSpec {
         match self {
             NodeSpec::Token(t) => t,
-            NodeSpec::Tree { .. } => panic!(),
-            NodeSpec::Compose => panic!(),
+            _ => panic!()
         }
     }
 }

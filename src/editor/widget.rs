@@ -1,8 +1,8 @@
 use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietText, HitTestTextPosition};
 use druid::widget::prelude::*;
-use druid::{Point, Color, Rect, Data};
-use druid::text::Selection;
-use tree_sitter::{Parser, Node, Tree};
+use druid::{Point, Color, Rect};
+use druid::text::{Selection, BasicTextInput, TextInput, EditAction, EditableText, offset_for_delete_backwards, Movement, movement};
+use tree_sitter::{Parser, Node, Tree, InputEdit};
 use druid::im::vector;
 
 use crate::*;
@@ -31,12 +31,17 @@ impl PartialEq for Cursor {
 impl Eq for Cursor {}
 
 
-#[derive(Clone)]
 pub struct EditorState {
     version: u64,
+    language: &'static Language,
     tokens: Tokens,
-    cursor: Cursor
+    cursor: Cursor,
+    parser: Parser,
+    tree: Tree
 }
+
+const tree_sitter_point_zero: tree_sitter::Point = tree_sitter::Point { row: 0, column: 0 };
+const tree_sitter_point_one: tree_sitter::Point = tree_sitter::Point { row: 0, column: 1 };
 
 impl EditorState {
     pub fn new() -> EditorState {
@@ -48,7 +53,7 @@ impl EditorState {
             Token::new(2, ","),
             Token::new(7, "key2 "),
             Token::new(4, ":"),
-            Token::new(7, "أَلْحُرُوف ٱلْعَرَبِيَّة😄 😁 😆 value valuluevaluevaluevalue"),
+            Token::new(7, "valuluevaluevaluevalueأَلْحُرُوف ٱلْعَرَبِيَّة😄😁😆 value valul"),
             Token::new(2, ","),
             Token::new(7, "key3"),
             Token::new(4, ":"),
@@ -56,36 +61,182 @@ impl EditorState {
             Token::new(3, "}")
         ];
         let cursor = Cursor::Point { token: 0, selection: Selection { start : 0, end : 0 } };
+        let language: &'static Language = &crate::languages::json::INSTANCE;
+
+        let mut parser = Parser::new();
+        parser.set_language(language.language()).unwrap();
+        let tps: Vec<u8> = tokens.iter().map(|n| n.tp as u8).collect();
+        let tree = parser.parse(&tps, None).unwrap();
         EditorState {
             version: 0,
-            tokens, cursor
+            language,
+            tokens, cursor, tree, parser
+        }
+    }
+
+    fn lex_sync_then_sit(&mut self, token: usize) {
+        self.version += 1;
+        if self.lex_sync(token) {
+            self.tree.edit(&InputEdit {
+                start_byte: token,
+                old_end_byte: token,
+                new_end_byte: token,
+                start_position: tree_sitter_point_zero,
+                old_end_position: tree_sitter_point_one,
+                new_end_position: tree_sitter_point_one
+            });
+            let tps: Vec<u8> = self.tokens.iter().map(|n| n.tp as u8).collect();
+            self.tree = self.parser.parse(tps, Some(&self.tree)).unwrap();
+        }
+    }
+
+    fn lex_sync(&mut self, token: usize) -> bool {
+        let token = &mut self.tokens[token];
+        let spec = self.language.node(token.tp).as_token();
+        if !spec.accept(&token.str) {
+            token.tp = 12;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn insert(&mut self, new: &str) {
+        match &mut self.cursor {
+            Cursor::Point { token, selection } => {
+                let token = *token;
+                let text = &mut self.tokens[token].str;
+                *selection = selection.constrain_to(text);
+                text.edit(selection.range(), new);
+                *selection = Selection::caret(selection.min() + new.len());
+                self.lex_sync_then_sit(token);
+            },
+        }
+    }
+
+    fn delete_backward(&mut self) {
+        match &mut self.cursor {
+            Cursor::Point { token, selection } => {
+                let token = *token;
+                let text = &mut self.tokens[token].str;
+                let to = if selection.is_caret() {
+                    let cursor = selection.end;
+                    let new_cursor = offset_for_delete_backwards(&selection, text);
+                    text.edit(new_cursor..cursor, "");
+                    new_cursor
+                } else {
+                    text.edit(selection.range(), "");
+                    selection.min()
+                };
+                match text.cursor(to) {
+                    Some(_) => *selection = Selection::caret(to),
+                    None => panic!()
+                }
+                self.lex_sync_then_sit(token);
+            },
+        }
+    }
+
+    fn delete_forward(&mut self) {
+        match &mut self.cursor {
+            Cursor::Point { token, selection } => {
+                let text = &mut self.tokens[*token].str;
+                if selection.is_caret() {
+                    // Never touch the characters before the cursor.
+                    if text.next_grapheme_offset(selection.end).is_some() {
+                        self.move_selection(Movement::Right, false);
+                        self.delete_backward();
+                    }
+                } else {
+                    self.delete_backward();
+                }
+            },
+        }
+    }
+
+    /// Edit a selection using a `Movement`.
+    fn move_selection(&mut self, mvmnt: Movement, modify: bool) {
+        match &mut self.cursor {
+            Cursor::Point { token, selection } => {
+                let text = &self.tokens[*token].str;
+                // This movement function should ensure all movements are legit.
+                // If they aren't, that's a problem with the movement function.
+                match mvmnt {
+                    Movement::Left if selection.end == 0 => {
+                        let mut index = *token;
+                        if index > 0 {
+                            index -= 1;
+                            let token_next = self.tokens[index].tp;
+                            if self.language.node(token_next).as_token().is_separator() {
+                                if index > 0 {
+                                    index -= 1;
+                                }
+                            }
+                            self.cursor = Cursor::Point { token: index as usize, selection: Selection::caret(self.tokens[index].str.len()) }
+                        }
+                    },
+                    Movement::Right if selection.end == text.len() => {
+                        let mut index = *token;
+                        if index < self.tokens.len() - 1 {
+                            index += 1;
+                            let token_next = self.tokens[index].tp;
+                            if self.language.node(token_next).as_token().is_separator() {
+                                if index < self.tokens.len() - 1 {
+                                    index += 1;
+                                }
+                            }
+                            self.cursor = Cursor::Point { token: index, selection: Selection::caret(0) }
+                        }
+                    },
+                    _ => {
+                        *selection = movement(mvmnt, *selection, text, modify);
+                    }
+                }
+            },
+        }
+    }
+
+    fn do_edit_action(&mut self, edit_action: EditAction) {
+        match edit_action {
+            EditAction::Insert(chars)  => {
+                self.insert(&chars);
+            },
+            // | EditAction::Paste(chars)
+            EditAction::Backspace => {
+                self.delete_backward();
+            },
+            EditAction::Delete => {
+                self.delete_forward();
+            },
+            EditAction::Move(movement) => self.move_selection(movement, false),
+            _ => {}
+            //EditAction::ModifySelection(movement) => self.move_selection(movement, true),
+            //EditAction::SelectAll => selection.all(),
+            // EditAction::Click(action) => {
+            //     if action.mods.shift() {
+            //         self.selection.end = action.column;
+            //     } else {
+            //         self.caret_to(text, action.column);
+            //     }
+            // }
+            //EditAction::Drag(action) => self.selection.end = action.column,
         }
     }
 }
 
-impl Data for EditorState {
-    fn same(&self, other: &Self) -> bool {
-        self.version == other.version && self.cursor == other.cursor
-    }
-}
-
 pub struct EditorWidget {
-    language: &'static Language,
-    parser: Parser,
-    tree: Option<Tree>,
+    basic: BasicTextInput,
     font: Option<PietFont>,
     max_width: f64,
+
+    data: Option<EditorState>,
     layout: Vec<Line>,
 }
 
 impl EditorWidget {
     pub fn new() -> EditorWidget {
-        let language: &'static Language = &crate::languages::json::INSTANCE;
-        let mut parser = Parser::new();
-        parser.set_language(language.language).unwrap();
         let state = EditorWidget {
-            language, parser,
-            tree: None,
+            basic: BasicTextInput::new(), data: None,
             font: None, layout: vec![], max_width: 0.0,
         };
         state
@@ -114,43 +265,77 @@ fn style(tp: &TokenSpec) -> Color {
                 FreeTokenSemantics::Unspecified => {
                     Color::rgb8(169, 183, 198)
                 },
+                FreeTokenSemantics::LexingError => {
+                    Color::rgb8(255, 0, 0)
+                }
             }
     }
 }
 
-impl Widget<EditorState> for EditorWidget {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut EditorState, env: &Env) {
+impl EditorWidget {
+    fn data(&self) -> &EditorState {
+        self.data.as_ref().unwrap()
     }
-
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &EditorState, env: &Env) {
-    }
-
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &EditorState, data: &EditorState, env: &Env) {
-        ctx.request_paint();
-    }
-
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &EditorState, env: &Env) -> Size {
-        let mut text = ctx.text();
-        if self.tree.is_none() {
-            let tps: Vec<u8> = data.tokens.iter().map(|n| n.tp as u8).collect();
-            self.tree = Some(self.parser.parse(&tps, None).unwrap());
+}
+impl Widget<u64> for EditorWidget {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, _: &u64, env: &Env) {
+        match event {
+            LifeCycle::WidgetAdded => {
+                ctx.register_for_focus()
+            },
+            // an open question: should we be able to schedule timers here?
+            // LifeCycle::FocusChanged(true) => ctx.submit_command(RESET_BLINK, ctx.widget_id()),
+            _ => (),
         }
+
+        self.data = Some(EditorState::new());
+    }
+
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut u64, env: &Env) {
+        match event {
+            Event::KeyDown(key_event) => {
+                let edit_action = self.basic.handle_event(key_event);
+                if let Some(edit_action) = edit_action {
+                    self.data.as_mut().unwrap().do_edit_action(edit_action);
+                    ctx.request_paint();
+                    ctx.request_layout();
+                }
+            },
+            _ => {
+
+            }
+        }
+        if !ctx.has_focus() {
+            ctx.request_focus();
+        }
+
+        *data = self.data.as_ref().unwrap().version;
+    }
+
+    fn update(&mut self, ctx: &mut UpdateCtx, _: &u64, _: &u64, env: &Env) {
+    }
+
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, _: &u64, env: &Env) -> Size {
+        let mut text = ctx.text();
         if self.font.is_none() {
             self.font = Some(text.new_font_by_name("JetBrains Mono", 14.0).build().unwrap());
         }
         let width = bc.max().width;
         let text = ctx.text();
+        let data = self.data();
         self.layout = LayoutParams {
-            state: data,
+            tokens: &data.tokens,
+            language: &data.language,
             widget: self,
             ctx: text, indent: 12.0
-        }.layout_node(self.tree.as_ref().unwrap().root_node(), width).to_lines();
+        }.layout_node(data.tree.root_node(), width).to_lines();
         self.max_width = width;
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &EditorState, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, _: &u64, env: &Env) {
         let layout = &self.layout;
+        let data = self.data();
         let cursor = match data.cursor {
             Cursor::Point { token, selection } => (token, selection.end),
         };
@@ -169,7 +354,7 @@ impl Widget<EditorState> for EditorWidget {
                 if token_pos == cursor.0 {
                     let cursor_pos: HitTestTextPosition = layout.hit_test_text_position(cursor.1).unwrap();
                     let x0 = cursor_pos.point.x + text_pos.x;
-                    let y = cursor_pos.point.y;
+                    let y = text_pos.y;
                     let rect = Rect {
                         x0,
                         x1: x0 + 1.0,
@@ -178,8 +363,7 @@ impl Widget<EditorState> for EditorWidget {
                     };
                     ctx.fill(rect, &Color::grey8(255));
                 }
-                //println!("{}, {}", width, height);
-                ctx.draw_text(layout, text_pos, &style(&self.language.nodes[token.tp() as usize].unwrap_as_token()));
+                ctx.draw_text(layout, text_pos, &style(&data.language.node(token.tp()).as_token()));
                 let width = token.width();
                 left += width;
                 token_pos += 1;
@@ -194,8 +378,10 @@ impl Widget<EditorState> for EditorWidget {
 
 
 
+// TODO maybe font caching should be done somewhere, so widget is not a parameter anymore
 struct LayoutParams<'a, 'b, 'c> {
-    state: &'a EditorState,
+    tokens: &'a Tokens,
+    language: &'static Language,
     widget: &'b EditorWidget,
     ctx: PietText<'c>,
     indent: f64,
@@ -203,7 +389,7 @@ struct LayoutParams<'a, 'b, 'c> {
 
 impl LayoutParams<'_, '_, '_> {
     fn layout_token(&mut self, node: Node, tp: &TokenSpec) -> LayoutResult {
-        let token = self.state.tokens[node.start_byte()].clone();
+        let token = self.tokens[node.start_byte()].clone();
         let layout = self.ctx.new_text_layout(
             self.widget.font.as_ref().unwrap(),
             &token.str,
@@ -224,7 +410,7 @@ impl LayoutParams<'_, '_, '_> {
         let error = node.is_error(); // TODO handle this
         // TODO handle extra nodes
         let nt = node.kind_id();
-        match &self.widget.language.nodes[nt as usize] {
+        match &self.language.node(nt) {
             NodeSpec::Tree { start, sep, end } => {
                 let mut cursor = node.walk();
                 let mut children_layout: Vec<(u16, LayoutResult)> = vec![];
@@ -290,7 +476,10 @@ impl LayoutParams<'_, '_, '_> {
                     LayoutResult::Line(line)
                 }
             },
-            NodeSpec::Compose => {
+            NodeSpec::Token(tp) => {
+                self.layout_token(node, tp)
+            },
+            _ => {
                 let mut block = Block::new();
                 let mut cursor = node.walk();
                 let mut has_child = cursor.goto_first_child();
@@ -304,9 +493,6 @@ impl LayoutParams<'_, '_, '_> {
                     has_child = cursor.goto_next_sibling();
                 }
                 block.wrap()
-            },
-            NodeSpec::Token(tp) => {
-                self.layout_token(node, tp)
             },
         }
     }
