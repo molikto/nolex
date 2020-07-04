@@ -1,186 +1,12 @@
-use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietTextLayout, PietText, HitTestTextPosition};
+use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietText, HitTestTextPosition};
 use druid::widget::prelude::*;
-use druid::{Point, Color, Rect, WidgetPod};
+use druid::{Point, Color, Rect};
 use tree_sitter::{Parser, Node, Tree};
 
 use crate::*;
-use druid::widget::TextBox;
 
 // TODO partial layout by using layout focus & offset etc. handle scroll ourselves
 // TODO reuse text layout for commonly created strs with same attribute?
-
-struct TokenLayout {
-    token: Token,
-    margin_left: f64,
-    margin_right: f64,
-    is_separator: bool,
-    layout: PietTextLayout,
-}
-
-impl TokenLayout {
-    fn width(&self) -> f64 {
-        self.layout.width()
-    }
-}
-
-// should always be non-empty
-struct Line {
-    indent: f64,
-    tokens: Vec<(f64, TokenLayout)>,
-    ascent: f64,
-    descent: f64,
-    width: f64
-}
-
-
-impl Line {
-    fn new() -> Line {
-        Line { indent: 0.0, tokens: vec![],  width: 0.0, ascent: 0.0, descent: 0.0 }
-    }
-
-    fn single(token: TokenLayout) -> Line {
-        let width = token.width();
-        Line { indent: 0.0, tokens: vec![(0.0, token)], width, ascent: 0.0, descent: 0.0 }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.tokens.is_empty()
-    }
-
-    fn push(&mut self, t: TokenLayout) {
-        let metrics = t.layout.line_metric(0).unwrap();
-        self.ascent = self.ascent.max(metrics.baseline);
-        self.descent = self.descent.max(metrics.height - metrics.baseline);
-        match self.tokens.last_mut() {
-            None => {
-                self.width += t.width();
-                self.tokens.push((0.0, t));
-            },
-            Some(last) => {
-                let pre_margin = last.1.margin_right;
-                let pre_sep = last.1.is_separator;
-                let margin= if t.is_separator {
-                    if pre_sep {
-                        0.0 // two sep don't have margin
-                    } else {
-                        t.margin_left
-                    }
-                } else {
-                    if pre_sep {
-                        pre_margin
-                    } else {
-                        t.margin_left.max(pre_margin)
-                    }
-                };
-                self.width += margin + t.width();
-                self.tokens.push((margin, t));
-            },
-        }
-    }
-
-    fn append(&mut self, mut other: Line) {
-        if !other.is_empty() {
-            let ( _, t) = other.tokens.remove(0);
-            // TODO the width calculation seems a bit off??
-            self.width += other.width - t.width();
-            self.push(t);
-            self.ascent = self.ascent.max(other.ascent);
-            self.descent = self.descent.max(other.descent);
-            self.tokens.append(&mut other.tokens);
-        }
-    }
-
-    fn width(&mut self) -> f64 {
-        self.width
-    }
-}
-
-// should always be multiple line
-struct Block {
-    lines: Vec<Line>
-}
-
-impl Block {
-    fn width(&mut self) -> f64 {
-        let mut w: f64 = 0.0;
-        for l in &mut self.lines {
-            w = w.max(l.width())
-        }
-        w
-    }
-
-    fn new() -> Block {
-        Block { lines: vec![Line::new()] }
-    }
-
-    fn wrap(mut self) -> LayoutResult {
-        if self.lines.len() == 1 {
-            LayoutResult::Line(self.lines.remove(0))
-        } else {
-            LayoutResult::Block(self)
-        }
-    }
-
-    fn append_block(&mut self, mut b: Block) {
-        let last = &mut self.lines.last_mut().unwrap();
-        if last.is_empty() {
-            self.lines.remove(self.lines.len() - 1);
-        }
-        self.lines.append(&mut b.lines);
-    }
-
-    fn append(&mut self, res: LayoutResult) {
-        let mut last = &mut self.lines.last_mut().unwrap();
-        match res {
-            LayoutResult::Single(a) => {
-                last.push(a)
-            }
-            LayoutResult::Line(l) => last.append(l),
-            LayoutResult::Block(b) => {
-                self.append_block(b)
-            }
-        }
-    }
-
-    fn indent(&mut self, indent: f64) {
-        for l in &mut self.lines {
-            l.indent += indent;
-        }
-    }
-
-    fn nl(&mut self) {
-        self.lines.push(Line::new())
-    }
-}
-
-enum LayoutResult {
-    Single(TokenLayout),
-    Line(Line),
-    Block(Block),
-}
-
-impl LayoutResult {
-    fn width(&mut self) -> f64 {
-        match self {
-            LayoutResult::Single(t) => t.width(),
-            LayoutResult::Line(l) => l.width(),
-            LayoutResult::Block(b) => b.width()
-        }
-    }
-
-    fn to_lines(self) -> Vec<Line> {
-        match self {
-            LayoutResult::Single(t) => vec![Line::single(t)],
-            LayoutResult::Line(l) => vec![l],
-            LayoutResult::Block(b) => b.lines
-        }
-    }
-
-    fn to_block(self) -> Block {
-        Block { lines: self.to_lines() }
-    }
-}
-
 
 #[derive(Clone, Debug)]
 enum Cursor {
@@ -197,7 +23,6 @@ pub struct EditorState {
     font: Option<PietFont>,
     max_width: f64,
     layout: Vec<Line>,
-    text_box: WidgetPod<String, TextBox>
 }
 
 impl EditorState {
@@ -223,12 +48,10 @@ impl EditorState {
         parser.set_language(language.language).unwrap();
         let tree = parser.parse(&tps, None).unwrap();
         let cursor = Cursor::Point { token: 0, pos: 0 };
-        let text_box = WidgetPod::new(TextBox::new());
         let state = EditorState {
             version: 0, language, parser,
             tokens, cursor,
             tree,
-            text_box,
             font: None, layout: vec![], max_width: 0.0,
         };
         state
@@ -263,15 +86,12 @@ fn style(tp: &TokenSpec) -> Color {
 
 impl Widget<u64> for EditorState {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut u64, env: &Env) {
-        self.inner.event(ctx, event, data, env);
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &u64, env: &Env) {
-        self.inner.lifecycle(ctx, event, data, env);
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, old_data: &u64, data: &u64, env: &Env) {
-        self.text_box.update(ctx,   &String::from("test"), env);
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &u64, env: &Env) -> Size {
@@ -283,7 +103,6 @@ impl Widget<u64> for EditorState {
         let text = ctx.text();
         self.layout = LayoutParams { state: self, ctx: text, indent: 12.0 }.layout_node(self.tree.root_node(), width).to_lines();
         self.max_width = width;
-        self.text_box.layout(ctx, bc, &String::from("test"), env);
         bc.max()
     }
 
@@ -295,29 +114,30 @@ impl Widget<u64> for EditorState {
         let mut top = 0.0;
         let mut token_pos: usize = 0;
         for line in layout {
-            let mut left = line.indent;
-            let tokens = &line.tokens;
-            let height = line.ascent + line.descent;
+            let mut left = line.indent();
+            let tokens = line.tokens();
+            let height = line.ascent() + line.descent();
             for token in tokens {
                 left += token.0;
                 let token = &token.1;
                 // draw cursor
-                let text_pos = Point::new(left, top + line.ascent);
+                let text_pos = Point::new(left, top + line.ascent());
+                let layout = token.layout();
                 if token_pos == cursor.0 {
-                    let cursor_pos: HitTestTextPosition = token.layout.hit_test_text_position(cursor.1).unwrap();
+                    let cursor_pos: HitTestTextPosition = layout.hit_test_text_position(cursor.1).unwrap();
                     let x0 = cursor_pos.point.x + text_pos.x;
                     let y = cursor_pos.point.y;
                     let rect = Rect {
                         x0,
                         x1: x0 + 1.0,
-                        y0: y - line.ascent,
-                        y1: y + line.descent
+                        y0: y - line.ascent(),
+                        y1: y + line.descent()
                     };
                     ctx.fill(rect, &Color::grey8(255));
                 }
                 //println!("{}, {}", width, height);
-                ctx.draw_text(&token.layout, text_pos, &style(&self.language.nodes[token.token.tp as usize].unwrap_as_token()));
-                let width = token.layout.width();
+                ctx.draw_text(layout, text_pos, &style(&self.language.nodes[token.tp() as usize].unwrap_as_token()));
+                let width = token.width();
                 left += width;
                 token_pos += 1;
             }
@@ -347,13 +167,13 @@ impl LayoutParams<'_, '_> {
         ).build().unwrap();
         let is_sep = match tp { TokenSpec::Constant {is_separator, .. }=> *is_separator, _ => false };
         let margin = if is_sep { 2.0 } else { 8.0 };
-        LayoutResult::Single(TokenLayout {
+        LayoutResult::Single(TokenLayout::new(
             token,
-            margin_left: margin,
-            margin_right: margin,
-            is_separator: is_sep,
+            margin,
+            margin,
+            is_sep,
             layout
-        })
+        ))
     }
 
     fn layout_node(&mut self, node: Node, max_width: f64) -> LayoutResult {
@@ -436,7 +256,7 @@ impl LayoutParams<'_, '_> {
                     let child_max_width = max_width - current_width;
                     let layout = self.layout_node(node, child_max_width);
                     block.append(layout);
-                    current_width = block.lines.last_mut().unwrap().width();
+                    current_width = block.last_width();
                     has_child = cursor.goto_next_sibling();
                 }
                 block.wrap()
