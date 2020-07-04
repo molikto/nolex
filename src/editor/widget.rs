@@ -47,13 +47,39 @@ impl EditorState {
     pub fn new() -> EditorState {
         let tokens = vector![
             Token::new(1, "{"),
+            Token::new(7, "key2"),
+            Token::new(4, ":"),
+            Token::new(7, "valuevaluevalueأَلْحُرُوف ٱلْعَرَبِيَّة😄😁😆 value valul"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(4, ":"),
+            Token::new(5, "["),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(2, ","),
+            Token::new(7, "key"),
+            Token::new(6, "]"),
+            Token::new(2, ","),
             Token::new(7, "key"),
             Token::new(4, ":"),
             Token::new(8, "1000"),
-            Token::new(2, ","),
-            Token::new(7, "key2 "),
-            Token::new(4, ":"),
-            Token::new(7, "valuluevaluevaluevalueأَلْحُرُوف ٱلْعَرَبِيَّة😄😁😆 value valul"),
             Token::new(2, ","),
             Token::new(7, "key3"),
             Token::new(4, ":"),
@@ -75,37 +101,41 @@ impl EditorState {
         }
     }
 
-    fn lex_sync_then_sit(&mut self, token: usize) {
+    fn reparse(&mut self, start: usize, end: usize, new_end: usize) {
         self.version += 1;
-        if self.lex_sync(token) {
-            self.tree.edit(&InputEdit {
-                start_byte: token,
-                old_end_byte: token,
-                new_end_byte: token,
-                start_position: tree_sitter_point_zero,
-                old_end_position: tree_sitter_point_one,
-                new_end_position: tree_sitter_point_one
-            });
-            // TODO bad
-            let tps: Vec<u8> = self.tokens.iter().map(|n| n.tp as u8).collect();
-            self.tree = self.parser.parse(tps, Some(&self.tree)).unwrap();
-        }
+        self.tree.edit(&InputEdit {
+            start_byte: start,
+            old_end_byte: end,
+            new_end_byte: new_end,
+            start_position: tree_sitter_point_zero,
+            old_end_position: tree_sitter_point_one,
+            new_end_position: tree_sitter_point_one
+        });
+        // TODO bad
+        let tps: Vec<u8> = self.tokens.iter().map(|n| n.tp as u8).collect();
+        self.tree = self.parser.parse(tps, Some(&self.tree)).unwrap();
     }
 
-    fn lex_sync(&mut self, token: usize) -> bool {
-        let token = &mut self.tokens[token];
+    fn lex_sync_then_sit(&mut self, t: usize) {
+        let token = &mut self.tokens[t];
         let spec = self.language.node(token.tp).as_token();
-        if spec.is_lex_error() {
-            if let Some(tp) = self.language.try_lex(&token.str) {
-                token.tp = tp;
+        if token.str.is_empty() {
+            if !spec.can_empty() {
+                self.move_selection(Movement::Left, false);
+                self.tokens.remove(t);
+                self.reparse(t, t + 1, t);
             }
-            true
         } else {
-            if !spec.accept(&token.str) {
-                token.tp = self.language.lex_error();
-                true
+            if spec.is_lex_error() {
+                if let Some(tp) = self.language.try_lex(&token.str) {
+                    token.tp = tp;
+                    self.reparse(t, t + 1, t + 1);
+                }
             } else {
-                false
+                if !spec.accept(&token.str) {
+                    token.tp = self.language.lex_error();
+                    self.reparse(t, t + 1, t + 1);
+                }
             }
         }
     }
@@ -128,20 +158,26 @@ impl EditorState {
             Cursor::Point { token, selection } => {
                 let token = *token;
                 let text = &mut self.tokens[token].str;
-                let to = if selection.is_caret() {
-                    let cursor = selection.end;
-                    let new_cursor = offset_for_delete_backwards(&selection, text);
-                    text.edit(new_cursor..cursor, "");
-                    new_cursor
+                if text.is_empty() {
+                    self.move_selection(Movement::Left, false);
+                    self.tokens.remove(token);
+                    self.reparse(token, token + 1, token);
                 } else {
-                    text.edit(selection.range(), "");
-                    selection.min()
-                };
-                match text.cursor(to) {
-                    Some(_) => *selection = Selection::caret(to),
-                    None => panic!()
+                    let to = if selection.is_caret() {
+                        let cursor = selection.end;
+                        let new_cursor = offset_for_delete_backwards(&selection, text);
+                        text.edit(new_cursor..cursor, "");
+                        new_cursor
+                    } else {
+                        text.edit(selection.range(), "");
+                        selection.min()
+                    };
+                    match text.cursor(to) {
+                        Some(_) => *selection = Selection::caret(to),
+                        None => panic!()
+                    }
+                    self.lex_sync_then_sit(token);
                 }
-                self.lex_sync_then_sit(token);
             },
         }
     }
@@ -149,15 +185,22 @@ impl EditorState {
     fn delete_forward(&mut self) {
         match &mut self.cursor {
             Cursor::Point { token, selection } => {
-                let text = &mut self.tokens[*token].str;
-                if selection.is_caret() {
-                    // Never touch the characters before the cursor.
-                    if text.next_grapheme_offset(selection.end).is_some() {
-                        self.move_selection(Movement::Right, false);
+                let token = *token;
+                let text = &mut self.tokens[token].str;
+                if text.is_empty() {
+                    self.move_selection(Movement::Right, false);
+                    self.tokens.remove(token);
+                    self.reparse(token, token + 1, token);
+                } else {
+                    if selection.is_caret() {
+                        // Never touch the characters before the cursor.
+                        if text.next_grapheme_offset(selection.end).is_some() {
+                            self.move_selection(Movement::Right, false);
+                            self.delete_backward();
+                        }
+                    } else {
                         self.delete_backward();
                     }
-                } else {
-                    self.delete_backward();
                 }
             },
         }
@@ -297,7 +340,9 @@ impl Widget<u64> for EditorWidget {
             _ => (),
         }
 
-        self.data = Some(EditorState::new());
+        if self.data.is_none() {
+            self.data = Some(EditorState::new());
+        }
     }
 
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut u64, env: &Env) {
@@ -360,9 +405,15 @@ impl Widget<u64> for EditorWidget {
                 // draw cursor
                 let text_pos = Point::new(left, top + line.ascent());
                 let layout = token.layout();
+                // TODO fat cursor for empty token
                 if token_pos == cursor.0 {
-                    let cursor_pos: HitTestTextPosition = layout.hit_test_text_position(cursor.1).unwrap();
-                    let x0 = cursor_pos.point.x + text_pos.x;
+                    let cursor_pos = if token.is_empty() {
+                        0.0
+                    } else {
+                        let pos: Point = layout.hit_test_text_position(cursor.1).unwrap().point;
+                        pos.x
+                    };
+                    let x0 = cursor_pos + text_pos.x;
                     let y = text_pos.y;
                     let rect = Rect {
                         x0,
@@ -418,7 +469,7 @@ impl LayoutParams<'_, '_, '_> {
     fn layout_node(&mut self, node: Node, depth: i32, max_width: f64) -> LayoutResult {
         let error = node.is_error(); // TODO handle this
         let nt = node.kind_id();
-        if node.is_missing() { panic!() }; // we don't know what to do yet.
+        if node.is_missing() { panic!("missing node with type {}", nt) }; // we don't know what to do yet.
         if node.is_extra() && nt != 65535 { panic!("extra node is not handled {}", nt) }; // we don't know what to do yet.
         // TODO handle extra nodes
         match &self.language.node(nt) {
@@ -457,12 +508,12 @@ impl LayoutParams<'_, '_, '_> {
                             inside = true;
                         } else if end.contains(&role) {
                             inside = false;
-                            block.nl();
+                            block.nl(0.0);
                             block.append(child);
                         } else if sep.contains(&role) {
                             block.append(child);
                         } else {
-                            block.nl();
+                            block.nl(self.indent);
                             let mut bl = child.to_block();
                             if inside {
                                 bl.indent(self.indent);

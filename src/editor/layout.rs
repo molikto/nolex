@@ -25,10 +25,13 @@ impl TokenLayout {
         &self.layout
     }
     pub fn width(&self) -> f64 {
-        self.layout.width()
+        self.layout.width() // TODO trailing whitespace not included
     }
     pub fn tp(&self) -> u16 {
         self.token.tp
+    }
+    pub fn is_empty(&self) -> bool {
+        self.token.str.is_empty()
     }
 }
 
@@ -143,23 +146,24 @@ impl Block {
     }
 
     pub fn append_block(&mut self, mut b: Block) {
-        let last = &mut self.lines.last_mut().unwrap();
-        if last.is_empty() {
-            self.lines.remove(self.lines.len() - 1);
+        if self.lines.is_empty() {
+            self.lines = b.lines;
+        } else if !b.lines.is_empty() {
+            self.lines.last_mut().unwrap().append(b.lines.remove(0));
+            self.lines.append(&mut b.lines);
         }
-        self.lines.append(&mut b.lines);
     }
 
     pub fn append(&mut self, res: LayoutResult) {
         let last = &mut self.lines.last_mut().unwrap();
         match res {
             LayoutResult::Single(a) => {
-            last.push(a)
-        }
+                last.push(a)
+            }
             LayoutResult::Line(l) => last.append(l),
             LayoutResult::Block(b) => {
-            self.append_block(b)
-        }
+                self.append_block(b)
+            }
         }
     }
 
@@ -169,8 +173,10 @@ impl Block {
         }
     }
 
-    pub fn nl(&mut self) {
-        self.lines.push(Line::new())
+    pub fn nl(&mut self, indent: f64) {
+        let mut line = Line::new();
+        line.indent = indent;
+        self.lines.push(line);
     }
 }
 

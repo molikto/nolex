@@ -70,6 +70,13 @@ impl TokenSpec {
         }
     }
 
+    pub fn can_empty(&self) -> bool {
+        match self {
+            TokenSpec::Constant {..} => false,
+            TokenSpec::Regex { can_empty, .. } => *can_empty
+        }
+    }
+
     pub fn is_separator(&self) -> bool {
         match self {
             TokenSpec::Constant { semantics, .. } => match semantics {
