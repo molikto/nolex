@@ -26,7 +26,7 @@ fn create() -> crate::Language {
                 can_space: true,
                 can_newline: true,
                 can_wrap: true,
-                semantics: FreeTokenSemantics::Literal
+                semantics: RegexTokenSemantics::Literal
             }),
             NodeSpec::Token(TokenSpec::Regex { // 8
                 name: "number",
@@ -36,7 +36,7 @@ fn create() -> crate::Language {
                 can_space: false,
                 can_newline: false,
                 can_wrap: false,
-                semantics: FreeTokenSemantics::Literal
+                semantics: RegexTokenSemantics::Literal
             }),
             NodeSpec::Token(TokenSpec::keyword("true")), // 9 (11
             NodeSpec::Token(TokenSpec::keyword("false")), // 10 (12
@@ -52,7 +52,7 @@ fn create() -> crate::Language {
                 can_space: true,
                 can_newline: true,
                 can_wrap: true,
-                semantics: FreeTokenSemantics::LexingError
+                semantics: RegexTokenSemantics::LexingError
             }),
             NodeSpec::Compose, // 13
             unused_node_spec(), // 14

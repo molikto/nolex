@@ -65,6 +65,7 @@ impl EditorState {
 
         let mut parser = Parser::new();
         parser.set_language(language.language()).unwrap();
+        // TODO bad
         let tps: Vec<u8> = tokens.iter().map(|n| n.tp as u8).collect();
         let tree = parser.parse(&tps, None).unwrap();
         EditorState {
@@ -85,6 +86,7 @@ impl EditorState {
                 old_end_position: tree_sitter_point_one,
                 new_end_position: tree_sitter_point_one
             });
+            // TODO bad
             let tps: Vec<u8> = self.tokens.iter().map(|n| n.tp as u8).collect();
             self.tree = self.parser.parse(tps, Some(&self.tree)).unwrap();
         }
@@ -93,11 +95,18 @@ impl EditorState {
     fn lex_sync(&mut self, token: usize) -> bool {
         let token = &mut self.tokens[token];
         let spec = self.language.node(token.tp).as_token();
-        if !spec.accept(&token.str) {
-            token.tp = 12;
+        if spec.is_lex_error() {
+            if let Some(tp) = self.language.try_lex(&token.str) {
+                token.tp = tp;
+            }
             true
         } else {
-            false
+            if !spec.accept(&token.str) {
+                token.tp = self.language.lex_error();
+                true
+            } else {
+                false
+            }
         }
     }
 
@@ -259,13 +268,13 @@ fn style(tp: &TokenSpec) -> Color {
             },
         TokenSpec::Regex { semantics, .. } =>
             match semantics {
-                FreeTokenSemantics::Literal => {
+                RegexTokenSemantics::Literal => {
                     Color::rgb8(106, 135, 89)
                 },
-                FreeTokenSemantics::Unspecified => {
+                RegexTokenSemantics::Unspecified => {
                     Color::rgb8(169, 183, 198)
                 },
-                FreeTokenSemantics::LexingError => {
+                RegexTokenSemantics::LexingError => {
                     Color::rgb8(255, 0, 0)
                 }
             }
@@ -395,7 +404,7 @@ impl LayoutParams<'_, '_, '_> {
             &token.str,
             f64::MAX,
         ).build().unwrap();
-        let is_sep = match tp { TokenSpec::Constant {is_separator, .. }=> *is_separator, _ => false };
+        let is_sep = tp.is_separator();
         let margin = if is_sep { 2.0 } else { 8.0 };
         LayoutResult::Single(TokenLayout::new(
             token,

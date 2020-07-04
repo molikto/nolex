@@ -24,7 +24,7 @@ pub enum ConstantTokenSemantics {
 }
 
 #[derive(Clone, Debug)]
-pub enum FreeTokenSemantics {
+pub enum RegexTokenSemantics {
     Literal,
     Unspecified,
     LexingError
@@ -35,8 +35,6 @@ pub enum TokenSpec {
     Constant {
         /// you don't want to contains spaces, also don't be empty, they are used as a visual clue for token boundary
         str: &'static str,
-        /// separators has some special handling by editor
-        is_separator: bool,
         /// don't need user to type space to decide new boundary
         eager: bool,
         /// currently used by highlighter
@@ -56,15 +54,28 @@ pub enum TokenSpec {
         /// can wrap new line if too long
         can_wrap: bool,
         /// currently used by highlighter
-        semantics: FreeTokenSemantics
+        semantics: RegexTokenSemantics
     }
     // LATER can have shaping settings: logic order or not, complex shaping or not, show codepoint instead...
 }
 
 impl TokenSpec {
+    pub fn is_lex_error(&self) -> bool {
+        match self {
+            TokenSpec::Regex { semantics, .. } => match semantics {
+                RegexTokenSemantics::LexingError => true,
+                _ => false
+            }
+            _ => false
+        }
+    }
+
     pub fn is_separator(&self) -> bool {
         match self {
-            TokenSpec::Constant { is_separator, .. } => *is_separator,
+            TokenSpec::Constant { semantics, .. } => match semantics {
+                ConstantTokenSemantics::Separator => true,
+                _ => false
+            }
             _ => false
         }
     }
@@ -79,7 +90,6 @@ impl TokenSpec {
     pub fn delimiter(str: &'static str) -> TokenSpec {
         TokenSpec::Constant {
             str,
-            is_separator: false,
             eager: true,
             semantics: ConstantTokenSemantics::Delimiter
         }
@@ -88,7 +98,6 @@ impl TokenSpec {
     pub fn separator(str: &'static str) -> TokenSpec {
         TokenSpec::Constant {
             str,
-            is_separator: true,
             eager: true,
             semantics: ConstantTokenSemantics::Separator
         }
@@ -97,7 +106,6 @@ impl TokenSpec {
     pub fn keyword(str: &'static str) -> TokenSpec {
         TokenSpec::Constant {
             str,
-            is_separator: false,
             eager: false,
             semantics: ConstantTokenSemantics::Keyword
         }
@@ -135,7 +143,7 @@ pub fn unused_node_spec() -> NodeSpec {
         can_space: false,
         can_newline: false,
         can_wrap: false,
-        semantics: FreeTokenSemantics::Unspecified,
+        semantics: RegexTokenSemantics::Unspecified,
     })
 }
 

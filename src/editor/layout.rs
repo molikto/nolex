@@ -62,9 +62,11 @@ impl Line {
     }
 
     pub fn push(&mut self, t: TokenLayout) {
-        let metrics = t.layout.line_metric(0).unwrap();
-        self.ascent = self.ascent.max(metrics.baseline);
-        self.descent = self.descent.max(metrics.height - metrics.baseline);
+        if !t.token.str.is_empty() {
+            let metrics = t.layout.line_metric(0).unwrap();
+            self.ascent = self.ascent.max(metrics.baseline);
+            self.descent = self.descent.max(metrics.height - metrics.baseline);
+        }
         match self.tokens.last_mut() {
             None => {
             self.width += t.width();
