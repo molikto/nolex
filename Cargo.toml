@@ -8,7 +8,7 @@ edition = "2018"
 cc="*"
 
 [dependencies]
-druid = { git = "https://github.com/linebender/druid.git" }
+druid = { git = "https://github.com/linebender/druid.git", features = ["im"] }
 tree-sitter = "0.16.1"
 regex = "1"
 lazy_static = "1.4.0"

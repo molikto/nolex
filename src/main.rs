@@ -9,9 +9,9 @@ pub mod data; pub use data::*;
 pub mod spec; pub use spec::*;
 pub mod language; pub use language::*;
 
-fn build_widget() -> impl Widget<u64> {
+fn build_widget() -> impl Widget<EditorState> {
     Scroll::new(
-        EditorState::new()
+        EditorWidget::new()
     ).vertical()
 }
 
@@ -21,6 +21,6 @@ pub fn main() {
         .title(LocalizedString::new("window-title").with_placeholder("nolex"));
     AppLauncher::with_window(window)
         .use_simple_logger()
-        .launch(0)
+        .launch(EditorState::new())
         .expect("launch failed");
 }

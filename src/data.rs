@@ -1,3 +1,4 @@
+use druid::im::Vector;
 
 // TODO support large constants by using rope
 #[derive(Clone, Debug)]
@@ -12,4 +13,4 @@ impl Token {
     }
 }
 
-pub type Tokens = Vec<Token>;
+pub type Tokens = Vector<Token>;

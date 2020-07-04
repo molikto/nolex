@@ -1,6 +1,5 @@
 use crate::Token;
 use druid::piet::{TextLayout, PietTextLayout};
-use druid::widget::prelude::*;
 
 pub struct TokenLayout {
     token: Token,
@@ -150,7 +149,7 @@ impl Block {
     }
 
     pub fn append(&mut self, res: LayoutResult) {
-        let mut last = &mut self.lines.last_mut().unwrap();
+        let last = &mut self.lines.last_mut().unwrap();
         match res {
             LayoutResult::Single(a) => {
             last.push(a)

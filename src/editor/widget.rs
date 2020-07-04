@@ -1,7 +1,9 @@
 use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietText, HitTestTextPosition};
 use druid::widget::prelude::*;
-use druid::{Point, Color, Rect};
+use druid::{Point, Color, Rect, Data};
+use druid::text::Selection;
 use tree_sitter::{Parser, Node, Tree};
+use druid::im::vector;
 
 use crate::*;
 
@@ -10,24 +12,35 @@ use crate::*;
 
 #[derive(Clone, Debug)]
 enum Cursor {
-    Point { token: usize, pos: usize }
+    Point {
+        token: usize,
+        selection: Selection // TODO blinking!
+    }
 }
 
+impl PartialEq for Cursor {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Cursor::Point {token: t1, selection: s1}, Cursor::Point { token: t2, selection: s2}) =>
+                t1 == t2 && s1.start == s2.start && s1.end == s2.end,
+            _ => false
+        }
+    }
+}
+
+impl Eq for Cursor {}
+
+
+#[derive(Clone)]
 pub struct EditorState {
     version: u64,
-    language: &'static Language,
-    parser: Parser,
     tokens: Tokens,
-    cursor: Cursor,
-    tree: Tree,
-    font: Option<PietFont>,
-    max_width: f64,
-    layout: Vec<Line>,
+    cursor: Cursor
 }
 
 impl EditorState {
     pub fn new() -> EditorState {
-        let tokens = vec![
+        let tokens = vector![
             Token::new(1, "{"),
             Token::new(7, "key"),
             Token::new(4, ":"),
@@ -42,16 +55,37 @@ impl EditorState {
             Token::new(11, "true"),
             Token::new(3, "}")
         ];
+        let cursor = Cursor::Point { token: 0, selection: Selection { start : 0, end : 0 } };
+        EditorState {
+            version: 0,
+            tokens, cursor
+        }
+    }
+}
+
+impl Data for EditorState {
+    fn same(&self, other: &Self) -> bool {
+        self.version == other.version && self.cursor == other.cursor
+    }
+}
+
+pub struct EditorWidget {
+    language: &'static Language,
+    parser: Parser,
+    tree: Option<Tree>,
+    font: Option<PietFont>,
+    max_width: f64,
+    layout: Vec<Line>,
+}
+
+impl EditorWidget {
+    pub fn new() -> EditorWidget {
         let language: &'static Language = &crate::languages::json::INSTANCE;
-        let tps: Vec<u8> = tokens.iter().map(|n| n.tp as u8).collect();
         let mut parser = Parser::new();
         parser.set_language(language.language).unwrap();
-        let tree = parser.parse(&tps, None).unwrap();
-        let cursor = Cursor::Point { token: 0, pos: 0 };
-        let state = EditorState {
-            version: 0, language, parser,
-            tokens, cursor,
-            tree,
+        let state = EditorWidget {
+            language, parser,
+            tree: None,
             font: None, layout: vec![], max_width: 0.0,
         };
         state
@@ -84,32 +118,41 @@ fn style(tp: &TokenSpec) -> Color {
     }
 }
 
-impl Widget<u64> for EditorState {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut u64, env: &Env) {
+impl Widget<EditorState> for EditorWidget {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut EditorState, env: &Env) {
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &u64, env: &Env) {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &EditorState, env: &Env) {
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &u64, data: &u64, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &EditorState, data: &EditorState, env: &Env) {
+        ctx.request_paint();
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &u64, env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &EditorState, env: &Env) -> Size {
         let mut text = ctx.text();
+        if self.tree.is_none() {
+            let tps: Vec<u8> = data.tokens.iter().map(|n| n.tp as u8).collect();
+            self.tree = Some(self.parser.parse(&tps, None).unwrap());
+        }
         if self.font.is_none() {
             self.font = Some(text.new_font_by_name("JetBrains Mono", 14.0).build().unwrap());
         }
         let width = bc.max().width;
         let text = ctx.text();
-        self.layout = LayoutParams { state: self, ctx: text, indent: 12.0 }.layout_node(self.tree.root_node(), width).to_lines();
+        self.layout = LayoutParams {
+            state: data,
+            widget: self,
+            ctx: text, indent: 12.0
+        }.layout_node(self.tree.as_ref().unwrap().root_node(), width).to_lines();
         self.max_width = width;
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, _data: &u64, _env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &EditorState, env: &Env) {
         let layout = &self.layout;
-        let cursor = match self.cursor {
-            Cursor::Point { token, pos } => (token, pos),
+        let cursor = match data.cursor {
+            Cursor::Point { token, selection } => (token, selection.end),
         };
         let mut top = 0.0;
         let mut token_pos: usize = 0;
@@ -151,17 +194,18 @@ impl Widget<u64> for EditorState {
 
 
 
-struct LayoutParams<'a, 'c> {
+struct LayoutParams<'a, 'b, 'c> {
     state: &'a EditorState,
+    widget: &'b EditorWidget,
     ctx: PietText<'c>,
     indent: f64,
 }
 
-impl LayoutParams<'_, '_> {
+impl LayoutParams<'_, '_, '_> {
     fn layout_token(&mut self, node: Node, tp: &TokenSpec) -> LayoutResult {
         let token = self.state.tokens[node.start_byte()].clone();
         let layout = self.ctx.new_text_layout(
-            self.state.font.as_ref().unwrap(),
+            self.widget.font.as_ref().unwrap(),
             &token.str,
             f64::MAX,
         ).build().unwrap();
@@ -180,7 +224,7 @@ impl LayoutParams<'_, '_> {
         let error = node.is_error(); // TODO handle this
         // TODO handle extra nodes
         let nt = node.kind_id();
-        match &self.state.language.nodes[nt as usize] {
+        match &self.widget.language.nodes[nt as usize] {
             NodeSpec::Tree { start, sep, end } => {
                 let mut cursor = node.walk();
                 let mut children_layout: Vec<(u16, LayoutResult)> = vec![];
