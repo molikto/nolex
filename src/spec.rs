@@ -1,18 +1,5 @@
 use regex::Regex;
 
-/**
-
-UNUSED!!! FOR NOW!!!
-
-**/
-
-#[derive(Clone, Debug)]
-pub struct Spec {
-    nodes: Vec<TokenSpec>,
-    // rules: Vec<Rule>
-}
-
-
 
 #[derive(Clone, Debug)]
 pub enum ConstantTokenSemantics {

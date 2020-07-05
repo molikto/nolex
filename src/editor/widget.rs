@@ -114,6 +114,17 @@ impl EditorState {
         // TODO bad
         let tps: Vec<u8> = self.tokens.iter().map(|n| n.tp as u8).collect();
         self.tree = self.parser.parse(tps, Some(&self.tree)).unwrap();
+        if self.tokens.is_empty() {
+            self.tokens.push_back(Token::new(self.language.lex_error(), ""));
+            self.reparse(0, 0, 1)
+        } else if self.language.node(self.tokens[0].tp).as_token().is_separator() {
+            self.tokens.push_front(Token::new(self.language.lex_error(), ""));
+            self.reparse(0, 0, 1)
+        } else if self.language.node(self.tokens.last().unwrap().tp).as_token().is_separator() {
+            let len = self.tokens.len();
+            self.tokens.push_back(Token::new(self.language.lex_error(), ""));
+            self.reparse(len, len, len + 1);
+        }
     }
 
     fn lex_sync_then_sit(&mut self, t: usize) {
@@ -188,7 +199,7 @@ impl EditorState {
                 let token = *token;
                 let text = &mut self.tokens[token].str;
                 if text.is_empty() {
-                    self.move_selection(Movement::Right, false);
+
                     self.tokens.remove(token);
                     self.reparse(token, token + 1, token);
                 } else {
@@ -210,12 +221,13 @@ impl EditorState {
     fn move_selection(&mut self, mvmnt: Movement, modify: bool) {
         match &mut self.cursor {
             Cursor::Point { token, selection } => {
-                let text = &self.tokens[*token].str;
+                let mut index = *token;
+                let text = &self.tokens[index].str;
+                // let self_separator = self.language.node(self.tokens[index].tp).as_token().is_separator();
                 // This movement function should ensure all movements are legit.
                 // If they aren't, that's a problem with the movement function.
                 match mvmnt {
                     Movement::Left if selection.end == 0 => {
-                        let mut index = *token;
                         if index > 0 {
                             index -= 1;
                             let token_next = self.tokens[index].tp;
@@ -382,7 +394,7 @@ impl Widget<u64> for EditorWidget {
             language: &data.language,
             widget: self,
             ctx: text, indent: 12.0
-        }.layout_node(data.tree.root_node(), 0, width).to_lines();
+        }.layout(&data.tree, width);
         self.max_width = width;
         bc.max()
     }
@@ -452,7 +464,7 @@ impl LayoutParams<'_, '_, '_> {
         let token = self.tokens[node.start_byte()].clone();
         let layout = self.ctx.new_text_layout(
             self.widget.font.as_ref().unwrap(),
-            &token.str,
+            if token.str.is_empty() { "*" } else { &token.str },
             f64::MAX,
         ).build().unwrap();
         let is_sep = tp.is_separator();
@@ -464,6 +476,10 @@ impl LayoutParams<'_, '_, '_> {
             is_sep,
             layout
         ))
+    }
+
+    fn layout(&mut self, tree: &Tree, max_width: f64) -> Vec<Line> {
+        self.layout_node(tree.root_node(), 0, max_width).to_lines()
     }
 
     fn layout_node(&mut self, node: Node, depth: i32, max_width: f64) -> LayoutResult {
