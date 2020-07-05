@@ -109,7 +109,7 @@ impl TokenSpec {
 #[derive(Clone, Debug)]
 pub enum NodeSpec {
     Token(TokenSpec),
-    Tree {
+    Tree { // TODO this doesn't handle like Scheme where the break point is positional
         start: Vec<u16>,
         sep: Vec<u16>,
         end: Vec<u16>

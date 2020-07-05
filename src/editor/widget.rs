@@ -1,4 +1,4 @@
-use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietText, HitTestTextPosition};
+use druid::piet::{FontBuilder, Text, TextLayoutBuilder, TextLayout, PietFont, PietText};
 use druid::widget::prelude::*;
 use druid::{Point, Color, Rect};
 use druid::text::{Selection, BasicTextInput, TextInput, EditAction, EditableText, offset_for_delete_backwards, Movement, movement};
@@ -479,10 +479,10 @@ impl LayoutParams<'_, '_, '_> {
     }
 
     fn layout(&mut self, tree: &Tree, max_width: f64) -> Vec<Line> {
-        self.layout_node(tree.root_node(), 0, max_width).to_lines()
+        self.layout_node(tree.root_node(), 0, max_width, max_width_first).to_lines()
     }
 
-    fn layout_node(&mut self, node: Node, depth: i32, max_width: f64) -> LayoutResult {
+    fn layout_node(&mut self, node: Node, depth: i32, max_width_first: f64, max_width_remaining: f64) -> LayoutResult {
         let error = node.is_error(); // TODO handle this
         let nt = node.kind_id();
         if node.is_missing() { panic!("missing node with type {}", nt) }; // we don't know what to do yet.
@@ -564,8 +564,9 @@ impl LayoutParams<'_, '_, '_> {
                 let mut current_width = 0.0;
                 while has_child {
                     let node = cursor.node();
+                    let max_width = if block.single_line() { max_width_first } else { max_width_remaining };
                     let child_max_width = max_width - current_width;
-                    let layout = self.layout_node(node, depth + 1, child_max_width);
+                    let layout = self.layout_node(node, depth + 1, child_max_width, max_width_remaining);
                     block.append(layout);
                     current_width = block.last_width();
                     has_child = cursor.goto_next_sibling();

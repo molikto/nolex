@@ -137,6 +137,9 @@ impl Block {
         Block { lines: vec![Line::new()] }
     }
 
+    pub fn single_line(&self) -> bool {
+        self.lines.len() == 1
+    }
     pub fn wrap(mut self) -> LayoutResult {
         if self.lines.len() == 1 {
             LayoutResult::Line(self.lines.remove(0))
