@@ -435,6 +435,13 @@ impl Widget<u64> for EditorWidget {
                     };
                     ctx.fill(rect, &Color::grey8(255));
                 }
+                // let rect = Rect {
+                //     x0: left,
+                //     x1: left + layout.width(),
+                //     y0: top,
+                //     y1: top + line.descent() + line.ascent()
+                // };
+                // ctx.fill(rect, &Color::grey8(255));
                 ctx.draw_text(layout, text_pos, &style(&data.language.node(token.tp()).as_token()));
                 let width = token.width();
                 left += width;
@@ -479,12 +486,13 @@ impl LayoutParams<'_, '_, '_> {
     }
 
     fn layout(&mut self, tree: &Tree, max_width: f64) -> Vec<Line> {
-        self.layout_node(tree.root_node(), 0, max_width, max_width_first).to_lines()
+        self.layout_node(tree.root_node(), 0, max_width, max_width).to_lines()
     }
 
     fn layout_node(&mut self, node: Node, depth: i32, max_width_first: f64, max_width_remaining: f64) -> LayoutResult {
         let error = node.is_error(); // TODO handle this
         let nt = node.kind_id();
+        // println!("layouting node {}, {}, with {}, {}", nt, depth, max_width_first, max_width_remaining);
         if node.is_missing() { panic!("missing node with type {}", nt) }; // we don't know what to do yet.
         if node.is_extra() && nt != 65535 { panic!("extra node is not handled {}", nt) }; // we don't know what to do yet.
         // TODO handle extra nodes
@@ -498,20 +506,47 @@ impl LayoutParams<'_, '_, '_> {
                 while has_child {
                     let node = cursor.node();
                     let kind = node.kind_id();
-                    let child_max_width = if is_block { max_width - self.indent } else { max_width - current_width };
-                    let mut layout = self.layout_node(node, depth + 1, child_max_width);
-                    match layout {
+                    let (c_first, c_remaining) = if is_block {
+                        let width = max_width_remaining - self.indent;
+                        (width, width)
+                    } else {
+                        (max_width_first - current_width, max_width_remaining - self.indent)
+                    };
+
+                    let mut layout = self.layout_node(node, depth + 1, c_first, c_remaining);
+                    let layout = match &mut layout {
                         LayoutResult::Block(_) => {
                             is_block = true;
                             // LATER it is possible first item is not a single line after indent is added
-                            layout = self.layout_node(node,  depth + 1, max_width - self.indent)
+                            // TODO this causes massive relayout sometimes?
+                            let width = max_width_remaining - self.indent;
+                            self.layout_node(node,  depth + 1, width, width)
                         }
-                        _ => {
-                            current_width += layout.width();
-                            // this happens when the items cannot turns into block but it too long anyway
-                            is_block = max_width < current_width;
+                        mut ll => {
+                            if !is_block {
+                                let layout_width = ll.width();
+                                // println!("{}, {}", current_width, layout_width);
+                                // this happens when the items cannot turns into block but it too long anyway
+                                let t1 : Option<&TokenLayout> = children_layout.last().and_then(|n| match &n.1 {
+                                    LayoutResult::Line(l) => l.last(),
+                                    LayoutResult::Single(s) => Some(&s),
+                                    _ => panic!()
+                                });
+                                let t2 = match ll {
+                                    LayoutResult::Line(l) => l.last().unwrap(),
+                                    LayoutResult::Single(s) => s,
+                                    _ => panic!()
+                                };
+                                let added_width = layout_width + Line::merge_margin(t1, t2);
+                                current_width += added_width;
+                                is_block = c_first < added_width;
+                                // if is_block {
+                                //     println!("turned into block, {}, {}", c_first, current_width);
+                                // }
+                            }
+                            layout
                         }
-                    }
+                    };
                     children_layout.push((kind, layout));
                     has_child = cursor.goto_next_sibling();
                 }

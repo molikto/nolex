@@ -50,6 +50,10 @@ impl Line {
         Line { indent: 0.0, tokens: vec![],  width: 0.0, ascent: 0.0, descent: 0.0 }
     }
 
+    pub fn len(&self) -> usize {
+        self.tokens.len()
+    }
+
     pub fn indent(&self) -> f64 { self.indent }
     pub fn ascent(&self) -> f64 { self.ascent }
     pub fn descent(&self) -> f64 { self.descent }
@@ -64,43 +68,48 @@ impl Line {
         self.tokens.is_empty()
     }
 
+    pub fn merge_margin(last: Option<&TokenLayout>, t: &TokenLayout) -> f64 {
+        match last {
+            None => 0.0,
+            Some(last) => {
+                let pre_margin = last.margin_right;
+                let pre_sep = last.is_separator;
+                if t.is_separator {
+                    if pre_sep {
+                        0.0 // two sep don't have margin
+                    } else {
+                        t.margin_left
+                    }
+                } else {
+                    if pre_sep {
+                        pre_margin
+                    } else {
+                        t.margin_left.max(pre_margin)
+                    }
+                }
+            },
+        }
+    }
+
+    pub fn last(&self) -> Option<&TokenLayout> {
+        self.tokens.last().map(|n| &n.1)
+    }
+
+
     pub fn push(&mut self, t: TokenLayout) {
         if !t.token.str.is_empty() {
             let metrics = t.layout.line_metric(0).unwrap();
             self.ascent = self.ascent.max(metrics.baseline);
             self.descent = self.descent.max(metrics.height - metrics.baseline);
         }
-        match self.tokens.last_mut() {
-            None => {
-            self.width += t.width();
-            self.tokens.push((0.0, t));
-        },
-            Some(last) => {
-            let pre_margin = last.1.margin_right;
-            let pre_sep = last.1.is_separator;
-            let margin= if t.is_separator {
-            if pre_sep {
-                0.0 // two sep don't have margin
-            } else {
-                t.margin_left
-            }
-        } else {
-            if pre_sep {
-                pre_margin
-            } else {
-                t.margin_left.max(pre_margin)
-            }
-        };
-            self.width += margin + t.width();
-            self.tokens.push((margin, t));
-        },
-        }
+        let margin = Line::merge_margin( self.last(), &t);
+        self.width += margin + t.width();
+        self.tokens.push((margin, t));
     }
 
     pub fn append(&mut self, mut other: Line) {
         if !other.is_empty() {
             let ( _, t) = other.tokens.remove(0);
-            // TODO the width calculation seems a bit off??
             self.width += other.width - t.width();
             self.push(t);
             self.ascent = self.ascent.max(other.ascent);
